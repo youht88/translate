@@ -7,25 +7,23 @@ from langchain_community.document_loaders import AsyncHtmlLoader
 from langchain_community.document_loaders import UnstructuredHTMLLoader
 from langchain_core.documents import Document
 from langchain_community.document_transformers import Html2TextTransformer
-
+from langchain_text_splitters import MarkdownHeaderTextSplitter
 import requests
 from bs4 import BeautifulSoup
 import re 
 import json
 from langchain_openai import ChatOpenAI
 import copy
-import html2markdown
 import hashlib
+import os
+from tqdm import tqdm
 
 # Install with pip install firecrawl-py
 from firecrawl import FirecrawlApp
-
 class Translater():
     def __init__(self,url:str|list[str],dictionaryFilename="dictionary.json",taskFilename="task.json",limit=10):
         self.limit = limit
         self.url = url if type(url)==list else [url]
-        self.html = None
-        self.markdown = None
         self.verify_args()
         self.dictionaryFilename = dictionaryFilename
         self.taskFilename = taskFilename
@@ -33,13 +31,12 @@ class Translater():
         self.task={}
         self.llm = None
         self.soup = None
-        self.metadata = None
         self.setLLM()
         self.setPrompt()
         self.setChain(self.llm, self.prompt)
         self.setCrawl()
-        self.loadDictionary(dictionaryFilename)
-        self.loadTask(taskFilename)
+        self.dictionary = self.loadJson(dictionaryFilename)
+        self.task = self.loadJson(taskFilename)
         # 获取 HTML 网页
         #url = "https://global.alipay.com/docs/"
         #url = "https://global.alipay.com/docs/ac/ams_oc/introduction"
@@ -53,27 +50,34 @@ class Translater():
         m = hashlib.md5()
         m.update(string.encode('utf-8'))
         return m.hexdigest()
-    
+    def splitDocs(self,text,line=200,code=True,table=True):
+        headers_to_split_on = [
+            ("#", "Header 1"),
+            ("##", "Header 2"),
+            ("###", "Header 3"),
+        ]
+        markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on,strip_headers=False)
+        docs = markdown_splitter.split_text(text)
+        print("len(docs):",len(docs))
+        print("docs.metata:",list(map(lambda doc:doc.metadata,docs)))
+        return list(map(lambda doc:doc.page_content,docs))
     def translate_text(self,text):
-        #match = re.match(r'^\W*(\S*)\W*', text)
-        #start_non_whitespace = match.group(1) if match else ''
-        #match = re.search(r'\W*(\S*)\W*$', text)
-        #end_non_whitespace = match.group(1) if match else ''
-        #middle_content = re.sub(r'^\W*(\S*)\W*$', r'\1', text)
-        #result = chat_qwen72b.invoke(f"请将以下文字翻译成技术术语的中文。要求仅输出这个翻译后中文内容，不要任何解释。如果不确定直接输出原文。\n\n{middle_content}")
-        #print(f"({len(start_non_whitespace)})({len(middle_content)})({len(end_non_whitespace)})")
-        #return f"{start_non_whitespace}{result.content}{end_non_whitespace}"
-        if self.dictCache.get(text):
-            return self.dictCache[text]
-
-        result = self.chain.invoke(
-            {
-                "input": text,
-            }
-        )
-        content = result.content
-        self.dictCache[text]=content
-        return content
+        blocks = self.splitDocs(text,line=200,code=True,table=True)
+        newBlocks = []
+        #with tqmd(total= len(blocks)) as pbar:
+        for index,block in enumerate(blocks):
+            if self.dictionary.get(block):
+                return self.dictionary[block]
+            result = self.chain.invoke(
+                {
+                    "input": block,
+                }
+            )
+            content = result.content
+            self.dictionary[text]=content
+            newBlocks.append(content)
+            #pbar.update(1)
+        return "\n".join(newBlocks)
     def setLLM(self):
         chat_llama3 = ChatOpenAI(
             base_url="https://api.together.xyz/v1",
@@ -94,40 +98,31 @@ class Translater():
         crawler = FirecrawlApp(api_key='fc-623406fb9b904381bd106e25244b38f5')
         self.crawler = crawler
         return crawler
-    def loadDictionary(self,dictionaryFilename):
+    def loadJson(self,filename):
         try:
-            with open(dictionaryFilename,"r",encoding="utf8") as f:
-                self.dictionary = json.loads(f)
+            with open(filename,"r") as f:
+                data = json.load(f)
         except Exception as e:
-            print("dictionary file error.",e)
-            self.dictionary = {}
-    def loadTask(self,taskFilename):
+            print(f"{filename} error.",e)
+            data = {}
+        return data
+    def dumpJson(self,filename,data):
         try:
-            with open(taskFilename,"r",encoding="utf8") as f:
-                self.task = json.loads(f)
+            with open(filename,"w") as f:
+                json.dump(data,f)
         except Exception as e:
-            print("task file error.",e)
-            self.task = {}
+            print(f"{filename} error.",e)
+
     
-    def writeDictionary(self):
-        with open(self.dictionaryFilename,"w",encoding="utf8") as f:
-            json.dump(self.dictionary,f)
-            print(f"Dictionary saved to {self.dictionaryFilename}")
-    def writeTask(self):
-        with open(self.taskFilename,"w",encoding="utf8") as f:
-            json.dump(self.task,f)
-            print(f"Task saved to {self.taskFilename}")
-    
-    def writeTranslated(self,text):
-        # 保存翻译后的 HTML
-        with open(self.translatedFilename, "w") as f:
-            f.write(text)
-            print(f"Translated saved to {self.translatedFilename}")
-    def writeOrigin(self,text):
-        # 保存原始文件
-        with open(self.originFilename, "w") as f:
+    def writeFile(self,filename,text):
+        # 保存文件
+        with open(filename, "w") as f:
             f.write(text)        
-            print(f"Origin saved to {self.originFilename}")
+            print(f"File saved to {filename}")
+    def readFile(self,filename):
+        with open(filename,"r") as f:
+            text = f.read()
+        return text
     def setPrompt(self):
         systemPromptText = """尽你的最大可能和能力回答用户问题。不要重复回答问题。不要说车轱辘话。语言要通顺流畅。不要出现刚说一句话，过一会又重复一遍的愚蠢行为。
           RULES:
@@ -159,29 +154,22 @@ class Translater():
         if visited is None:
             visited = set()
         visited.add(url)
-
         # 发送GET请求
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
-
         # 找到所有的a标签，这些通常代表链接
         links = [a['href'] for a in soup.find_all('a', href=True)]
-
         # 去除相对路径，转换为绝对路径
         links = [urljoin(url, link) for link in links]
-
         # 过滤不在同一域名下的链接和已访问过的链接
         links = [link for link in links if urlparse(link).netloc == urlparse(url).netloc and link not in visited]
-
         # 递归获取所有链接
         for link in links:
             visited.add(link)
             if len(visited) >= self.limit:
                 break
             self.getAllLinks(link, visited)
-
         return visited
-
     def start(self):
         pass
 class MarkdownTranslater(Translater):
@@ -210,26 +198,40 @@ class MarkdownTranslater(Translater):
         )
         self.prompt = prompt
         return prompt
-
     def start(self):
-        # self.originFilename="origin.md"
-        # params = {
-        #     "pageOptions":{
-        #         "includeHtml": True
-        #     }
-        # }
-        # response = self.crawler.scrape_url(self.url,params=params)
-        # self.html = response["html"]
-        # self.markdown = response["content"]
-        # self.metadata = response["metadata"]
-        # print(self.metadata)
-        # with open(originFilename,"r",encoding="utf8") as f:
-        #     self.markdown = f.read()
-
-        translated = self.translate_text(self.markdown)
-        self.writeOrigin(self.markdown)
-        self.writeTranslated(translated)
-        self.writeDictionary()        
+        total = len(self.url)
+        for index,url in enumerate(self.url):
+            id = self.md5(url)
+            taskItem = self.task.get(id)
+            if not taskItem:
+                taskItem = {
+                    "url": url,
+                    "metadata": None,
+                    "done": False
+                }
+                self.task[id] = taskItem
+            if not os.path.exists(f"{id}.md"):
+                params = {
+                  "pageOptions":{
+                    "includeHtml": True
+                  }
+                }
+                response = self.crawler.scrape_url(url,params=params)
+                originHtml = response["html"]
+                originMarkdown = response["content"]
+                metadata = response["metadata"]
+                self.writeFile(f"{id}.md",originMarkdown)
+                self.writeFile(f"{id}.html",originHtml)
+                taskItem["metadata"] = metadata
+            else:
+                originMarkdown = self.readFile(f"{id}.md")
+            if not os.path.exists(f"{id}_cn.md"):
+                resultMarkdown = self.translate_text(originMarkdown)
+                self.writeFile(f"{id}_cn.md",resultMarkdown)
+                taskItem["done"] = True
+            print(f"[{(index+1)/total*100}%]===>url->{url},id->{id}")
+        self.dumpJson(self.dictionaryFilename,self.dictionary)
+        self.dumpJson(self.taskFilename,self.task)
         
 class HTMLTranslater(Translater):
     # def __init__(self,url:str|list[str],dictionaryFilename="dictionary.json",taskFilename="task.json"):
@@ -243,7 +245,6 @@ class HTMLTranslater(Translater):
     #             self.html = f.read()
     #     # 解析 HTML
     #     self.soup = BeautifulSoup(self.html, "html.parser")
-
     def setPrompt(self):
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务，擅长将这些方面的技术文档的翻译。请将以下文字翻译成中文。
           要求
@@ -303,22 +304,22 @@ class HTMLTranslater(Translater):
                     translated_text = self.translate_text(original_text)
                     print(f"A:{repr(original_text)}\nB:{repr(translated_text)}\nC:{element}\nD:<{element.parent.name}>\nE:{repr(element.parent)}>\n{'*'*20}\n")
                     element.replace_with(translated_text)
-
         # 生成翻译后的 HTML
         translated = self.soup.prettify("utf-8")
         self.writeOrigin(self.html)
         self.writeTranslated(translated)
         self.writeDictionary()        
-
 if __name__ == "__main__":
-    url = "https://global.alipay.com/docs/"
-    #url = "https://global.alipay.com/docs/ac/flexiblesettlement_en/overview"
-    #url = "https://global.alipay.com/docs/ac/scantopay_en/overview"
-    #url = "https://global.alipay.com/docs/ac/cashierpay/apm_ww"
-    #url = "https://global.alipay.com/docs/ac/scan_to_bind_en/refund"
-    with open("origin.html","r") as f:
-        html = f.read()
-
+    url = ["https://global.alipay.com/docs/",
+    "https://global.alipay.com/docs/ac/flexiblesettlement_en/overview",
+    "https://global.alipay.com/docs/ac/scantopay_en/overview",
+    "https://global.alipay.com/docs/ac/cashierpay/apm_ww",
+    "https://global.alipay.com/docs/ac/scan_to_bind_en/refund",
+    "https://global.alipay.com/docs/ac/cashierpay/apm_api",
+    "https://global.alipay.com/docs/ac/cashierpay/prefront"
+    ]
+    #with open("origin.html","r") as f:
+    #    html = f.read()
     #translater = HTMLTranslater(url=url)
     # translater = HTMLTranslater(html=html,dictFilename="/Users/youht/source/python/translate/translate/dict.json")
     # obj = translater.soup.select(".div1 .h2-1")
@@ -329,11 +330,11 @@ if __name__ == "__main__":
     #translater = MarkdownTranslater(originFilename= "origin.md")
     
     translater = MarkdownTranslater(url= url)
+    translater.start()
     #links = translater.getAllLinks(url)
     #print(len(links),links)
     #translater.start()
     
-
     # documents = [Document(page_content = str(translater.soup))]
     # print(documents)
     # html2text = Html2TextTransformer()
