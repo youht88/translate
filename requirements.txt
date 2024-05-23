@@ -2,4 +2,5 @@ langchain
 langchain-openai
 langchain-community
 firecrawl-py
-tqmd
+#tqmd
+markdownify
