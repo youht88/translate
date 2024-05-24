@@ -4,3 +4,7 @@ langchain-community
 firecrawl-py
 #tqmd
 markdownify
+opencv-python
+paddlepaddle
+paddleocr
+logger

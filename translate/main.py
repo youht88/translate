@@ -24,6 +24,7 @@ from tqdm import tqdm
 # Install with pip install firecrawl-py
 from firecrawl import FirecrawlApp
 from enum import Enum
+import random
 
 class MarkdonwAction(Enum):
     CRAWLER = 1
@@ -184,6 +185,11 @@ class Translater():
         )
         self.prompt = prompt
         return prompt
+    def clearErrorMsg(self):
+        for id,taskItem in self.task.items():
+            if taskItem.get("errorMsg") and taskItem.get("errorMsg")!="":
+                taskItem["errorMsg"] = ""
+        self.dumpJson(self.taskFilename,self.task)
     def getLinks(self,url):
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -220,10 +226,12 @@ class Translater():
     def getMarkdown(self,url):
         if self.markdownAction==MarkdonwAction.JINA:
             try:
+                tokens = ["jina_93597c2c9a664e9791b029db95d526d9T8xm11r0PuQX0Rs2rqb7tMrMu4XA"]
+                token = random.choice(tokens)
                 res = requests.get(f"https://r.jina.ai/{url}",
                                    headers={"Accept":"application/json",
                                             "X-Return-Format":"markdown",
-                                            "Authorization": "Bearer jina_cc8bb0d689774fcc95076de2de6d62fbkUaWCDP7TbwGxrB3CCqTUli7_SLA"
+                                            #"Authorization": f"Bearer {token}"
                                             })
                 # res = requests.get(f"https://r.jina.ai/{url}",
                 #                 headers={"Accept":"application/json",
@@ -410,17 +418,18 @@ if __name__ == "__main__":
     #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
     #url = "https://global.alipay.com/docs/ac/cashierpay/apm_api"
     #url = "https://global.alipay.com/docs/ac/cashierpay/overview" #有中文
+    #url = "https://global.alipay.com/docs/ac/reconcile/settlement_details"
 
-    #url = "https://global.alipay.com/docs"
+    url = "https://global.alipay.com/docs"
     #url = "https://global.alipay.com/docs/ac/cashierpay/overview"
     #url = "https://global.alipay.com/docs/ac/easypay_en/overview_en"
-    url = "https://global.alipay.com/docs/ac/scantopay_en/overview"
+    #url = "https://global.alipay.com/docs/ac/scantopay_en/overview"
     #url = "https://global.alipay.com/docs/ac/autodebit_en/overview"
     #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
     #url = "https://global.alipay.com/docs/instorepayment"
 
-    #url = "https://global.alipay.com/docs/ac/reconcile/settlement_details"
 
-    translater = MarkdownTranslater(url=url , crawlLevel=1, markdownAction=MarkdonwAction.JINA)
+    translater = MarkdownTranslater(crawlLevel=1, markdownAction=MarkdonwAction.JINA)
+    translater.clearErrorMsg()
     translater.start()
     
