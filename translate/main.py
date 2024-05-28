@@ -38,10 +38,16 @@ from logger import logger
 from utils import *
 from langchain_utils import *
 
+from image_translater import ImageTranslater
+
 class MarkdonwAction(Enum):
     CRAWLER = 1
     JINA = 2
     MARKDOWNIFY = 3
+class ImageAction(Enum):
+    REPLACE = 1
+    MARK = 2
+
 class Translater():
     def __init__(self,url:str|list[str]|None=None,dictionaryFilename="dictionary.json",
                  taskFilename="task.json",crawlLevel=1,limit=10,markdownAction=MarkdonwAction.CRAWLER):
@@ -49,7 +55,7 @@ class Translater():
         self.limit = limit
         self.crawlLevel = crawlLevel
         self.taskFilename = taskFilename
-
+        self.imageTranslater = None
         if type(url)==list:
             self.url = url
             self.task = loadJson(self.taskFilename)
@@ -214,7 +220,7 @@ class MarkdownTranslater(Translater):
     # url为None，则根据self.taskFilename的任务执行
     # url为单个网址，则根据crawlLevel的层级获取url。其中为0表示当前网址，为1表示当前网页的一级链接，以此类推
     # url为网址数组，则忽略crawlLevel，与self.taskFilename的网址合并任务
-    def start(self):
+    def start(self, imageAction:ImageAction|None=None):
         total = len(self.url)
         logger.info(f"begin on {total} urls\n")
         startTime = time.time()
@@ -253,6 +259,19 @@ class MarkdownTranslater(Translater):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
                     resultMarkdown = self.translate_markdown_text(self.markdown_chain,originMarkdown)
                     writeFile(f"{id}_cn.md",resultMarkdown)
+                if imageAction:
+                    if not self.imageTranslater:
+                        self.imageTranslater = ImageTranslater()
+                    if imageAction==ImageAction.REPLACE:
+                        with tqdm(total= len(taskItem["imageLinks"])) as pbar: 
+                            for imageLink in taskItem["imageLinks"]:
+                                self.imageTranslater.start(imageLink[1],mode="replace")
+                                pbar.update(1)
+                    elif imageAction==ImageAction.MARK:
+                        with tqdm(total= len(taskItem["imageLinks"])) as pbar: 
+                            for imageLink in taskItem["imageLinks"]:
+                                self.imageTranslater.start(imageLink[1],mode="mark")
+                                pbar.update(1)
                 endTime = time.time() - startTime
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
@@ -260,7 +279,8 @@ class MarkdownTranslater(Translater):
                 logger.error(f"error on url={url},id={id}",e)
         dumpJson(self.dictionaryFilename,self.dictionary)
         dumpJson(self.taskFilename,self.task)
-        
+        self.imageTranslater.save()
+
 class HTMLTranslater(Translater):
     # def __init__(self,url:str|list[str],dictionaryFilename="dictionary.json",taskFilename="task.json"):
     #     super().__init__(url,dictionaryFilename,taskFilename)
@@ -349,16 +369,16 @@ if __name__ == "__main__":
     #url = "https://global.alipay.com/docs/ac/cashierpay/overview" #有中文
     #url = "https://global.alipay.com/docs/ac/reconcile/settlement_details"
 
-    url = "https://global.alipay.com/docs"
+    #url = "https://global.alipay.com/docs"
     #url = "https://global.alipay.com/docs/ac/cashierpay/overview"
     #url = "https://global.alipay.com/docs/ac/easypay_en/overview_en"
     #url = "https://global.alipay.com/docs/ac/scantopay_en/overview"
     #url = "https://global.alipay.com/docs/ac/autodebit_en/overview"
     #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
     #url = "https://global.alipay.com/docs/instorepayment"
-
+    url = "https://global.alipay.com/docs/ac/cashierpay/apm_android"
 
     translater = MarkdownTranslater(url=url,crawlLevel=0, markdownAction=MarkdonwAction.JINA)
     translater.clearErrorMsg()
-    translater.start()
+    translater.start(imageAction=ImageAction.MARK)
     

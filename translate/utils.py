@@ -1,6 +1,7 @@
 import hashlib
 import requests
 from io import BytesIO
+import imghdr
 from PIL import Image
 import base64
 import json
@@ -11,17 +12,23 @@ def get_url_image(url):
     response = requests.get(url)
     # 确保请求成功
     if response.status_code == 200:
-        # 将下载的图片数据转换为字节流
-        image_data = BytesIO(response.content)
-
-        # 使用 Pillow 的 Image 模块打开图片
-        image = Image.open(image_data)
-
-        # 显示图片
-        #display(image)
-        return image
+        # 检查响应头的 Content-Type
+        content_type = response.headers.get('Content-Type', '')
+        if content_type.startswith('image/'):
+            image_type = imghdr.what(None, h=response.content)
+            if image_type in ['jpeg', 'png','webp']:
+                # 将下载的图片数据转换为字节流
+                image_data = BytesIO(response.content)
+                # 使用 Pillow 的 Image 模块打开图片
+                image = Image.open(image_data)
+                # 显示图片
+                #display(image)
+                return image
+            else:
+                print("无法识别图片类型：", image_type)
     else:
         print("无法下载图片，状态码：", response.status_code) 
+    return None
 def convert_to_base64(pil_image):
     buffered = BytesIO()
     pil_image.save(buffered, format="PNG")  # You can change the format if needed
