@@ -7,13 +7,13 @@ import os
 
 from utils import *
 from langchain_utils import *
-import logging
+from llava import Llava
 
 class ImageTranslater():
-    def __init__(self,imageFilename="image.json"):
-        urllib3_logger = logging.getLogger("urllib3")
+    def __init__(self,imageFilename="image.json",check_content=True):
+        #urllib3_logger = logging.getLogger("urllib3")
         # 设置 urllib3 logger 的级别为 CRITICAL，这样只有严重的错误才会被记录
-        urllib3_logger.setLevel(logging.CRITICAL)
+        #urllib3_logger.setLevel(logging.CRITICAL)
 
         #self.image_url = image_url
         self.chain = self.get_chain()
@@ -21,6 +21,11 @@ class ImageTranslater():
         self.font_path = "./Arial.ttf"
         self.imageFilename = imageFilename
         self.image_task = loadJson(self.imageFilename)
+
+        self.check_content = check_content
+        self.llava = None
+        if self.check_content:
+            self.llava = Llava() 
     def get_chain(self):
         # llm = get_chatopenai_llm(
         #     base_url="https://api.together.xyz/v1",
@@ -39,33 +44,41 @@ class ImageTranslater():
             1.简单明了，任何情况下不要解释原因，只需要翻译原始内容
             2.碰到专有名词、代码、数字、url、程序接口、程序方法名称以及缩写的情况直接输出原始内容
             3.如果不知道如何翻译则直接输出原始内容
-            4.要保留原始内容的格式。如1. 、1.1等
+            4.要保留原始内容的格式。如1. 、1.1、()、[]等
         """
         prompt = get_prompt(systemPromptText)
         chain = prompt | llm
         return chain
     def save(self):
         dumpJson(self.imageFilename,self.image_task)
-    def start(self,image_url,mode="replace"):
-        # mode = 'replace' | 'mark'
+    def start(self,image_url,mode="mark"):
+        # mode : 'replace' | 'mark'
         id = md5(image_url)
         if id not in self.image_task:
             self.image_task[id] = {"url":image_url,"mode":mode}
-        if os.path.exists(f"img_{id}.png"):
-            logger.info(f"img_{id}.png exists")
+        mode_letter = "m" if mode=="mark" else "r"
+        if os.path.exists(f"img_{mode_letter}_{id}.png"):
+            logger.info(f"img_{mode_letter}_{id}.png exists")
             return
-        image,result =  self.get_ocr(image_url)
+        image,image_type = get_url_image(image_url)
+        
+        if self.llava:
+            llava_result = self.llava.start(image)
+            print("llava_result:",llava_result)
+
+        result =  self.get_ocr(image)        
+        self.image_task[id]["imageType"]=image_type
         if not image:
             return None
         merged_result = self.merge_adjacent_lines(result)
 
         if mode == "replace":
             new_image = self.replace_image(id,image,merged_result)
-            new_image.save(f"img_{id}.png")
         else:
             new_image = self.mark_image(id,image,merged_result)
-            new_image.save(f"img_{id}.png")
-
+        
+        new_image.save(f"img_{mode_letter}_{id}.png")
+        
         # plt.imshow(new_image)
         # plt.axis('off')
         # plt.show()
@@ -76,19 +89,16 @@ class ImageTranslater():
                     "input": text,
                 }
             )
-        print(f"{text}-->{result.content}")
+        #print(f"{text}-->{result.content}")
         return result.content
 
-    def get_ocr(self, image_url):
-        # 加载图像
-        #image_url = "https://idocs-assets.marmot-cloud.com/storage/idocs87c36dc8dac653c1/1693280825692-b5bc334d-1898-4142-8e3c-8422cbe43291.png"
-        image = get_url_image(image_url)
+    def get_ocr(self, image):
         if image:
             # 进行OCR识别
             result = self.ocr.ocr(np.array(image), cls=True)
-            return (image,result)
+            return result
         else:
-            return (None,None)
+            return None
     # 合并相邻行文本
     def merge_adjacent_lines(self, result):
         merged_result = []
@@ -138,10 +148,10 @@ class ImageTranslater():
             merged_result.append(tuple(current_line))
 
         # 输出合并后的结果
-        for idx in range(len(merged_result)):
-            res = merged_result[idx]
-            for line in res:
-                print(line)
+        # for idx in range(len(merged_result)):
+        #     res = merged_result[idx]
+        #     for line in res:
+        #         print(line)
 
         return [merged_result]
 
@@ -163,6 +173,7 @@ class ImageTranslater():
         inpainted_image_pil = Image.fromarray(cv2.cvtColor(inpainted_image, cv2.COLOR_BGR2RGB))
         # 创建一个绘图对象
         draw = ImageDraw.Draw(inpainted_image_pil)
+        trans_result = []
         # 遍历识别结果，替换文字
         for line in result:
             for word_info in line:
@@ -174,31 +185,34 @@ class ImageTranslater():
                 # 转换文字（这里可以进行任何你需要的转换，比如更改文字内容、字体、颜色等）
                 # 例如：替换为 "替换后的文字"
                 translated_text = self.translate_ocr_text(text)
+                trans_result.append((text,translated_text))
                 # 加载字体
                 font = ImageFont.truetype(self.font_path, 20)
                 # 在原位置绘制转换后的文字
                 draw.text((min_x, min_y), translated_text, fill=(0, 0, 0), font=font)
         # 或显示图像
         # display(inpainted_image_pil)
+        self.image_task[id]["result"] = trans_result
         return inpainted_image_pil
     def mark_image(self, id, image, result):  
         image = image.convert('RGB')
         # 输出结果
-        for idx in range(len(result)):
-            res = result[idx]
-            for line in res:
-                print(line) 
+        # for idx in range(len(result)):
+        #     res = result[idx]
+        #     for line in res:
+        #         print(line) 
         # 可视化结果
         boxes = [line[0] for res in result for line in res]
         txts = [self.translate_ocr_text(line[1][0]) for res in result for line in res]
+        origin_txts = [line[1][0] for res in result for line in res]
         scores = [line[1][1] for res in result for line in res]
         im_show = draw_ocr(image, boxes, txts, scores, font_path=self.font_path)
         im_show = Image.fromarray(im_show)
-        self.image_task[id]["origin"] = result
-        self.image_task[id]["result"] = txts
+        self.image_task[id]["result"] = list(zip(origin_txts,txts))
         return im_show
 
 if __name__ == "__main__":
-    image_url = "https://idocs-assets.marmot-cloud.com/storage/idocs87c36dc8dac653c1/1693280825692-b5bc334d-1898-4142-8e3c-8422cbe43291.png"
+    #image_url = "https://idocs-assets.marmot-cloud.com/storage/idocs87c36dc8dac653c1/1693280825692-b5bc334d-1898-4142-8e3c-8422cbe43291.png"
+    image_url = "https://idocs-assets.marmot-cloud.com/storage/idocs87c36dc8dac653c1/1693452989511-cb0d69f9-212c-4b4b-ad5e-152de8a24b77.png"
     image_translater = ImageTranslater()
-    image_translater.start(image_url)
+    image_translater.start(image_url,mode="replace")

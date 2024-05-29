@@ -1,21 +1,10 @@
 import time
 from urllib.parse import quote, urljoin, urlparse
 from markdownify import markdownify
-import langchain
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_community.document_loaders import WebBaseLoader
-from langchain_community.document_loaders import AsyncHtmlLoader
-from langchain_community.document_loaders import UnstructuredHTMLLoader
-from langchain_core.documents import Document
-from langchain_community.document_transformers import Html2TextTransformer
-from langchain_text_splitters import MarkdownHeaderTextSplitter
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 import requests
 from bs4 import BeautifulSoup
 import re 
 import json
-from langchain_openai import ChatOpenAI
 import copy
 import hashlib
 import os
@@ -26,13 +15,6 @@ from firecrawl import FirecrawlApp
 from enum import Enum
 import random
 
-import cv2
-import numpy as np
-from paddleocr import PaddleOCR
-from PIL import Image,ImageFont,ImageDraw
-from IPython.display import HTML, display
-import base64
-from io import BytesIO
 from logger import logger
 
 from utils import *
@@ -87,7 +69,6 @@ class Translater():
         self.dictionaryFilename = dictionaryFilename
         self.dict={}
         self.markdown_chain = self.getMarkdownChain()
-        self.llava_chain = self.getLlavaChain()
         self.setCrawl()
         self.dictionary = loadJson(dictionaryFilename)
 
@@ -101,6 +82,7 @@ class Translater():
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
                 try:
+                    #writeFile(f"block_{index}.md",block)
                     if self.dictionary.get(block):
                         return self.dictionary[block]
                     result = chain.invoke(
@@ -115,7 +97,7 @@ class Translater():
                 except Exception as e:
                     print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                     raise e
-        return "\n".join(newBlocks)
+        return "\n\n".join(newBlocks)
     def getMarkdownChain(self):
         # llm = get_chatopenai_llm(
         #     base_url="https://api.together.xyz/v1",
@@ -133,12 +115,13 @@ class Translater():
         注意:
           1、不要有遗漏
           2、简单明了
+          3、保留所有空白行，以确保markdown格式正确
+          4、检查翻译的结果，以确保语句通顺
         \n\n"""
         prompt = get_prompt(systemPromptText)
         chain = prompt | llm
         return chain
-    def getLlavaChain(self):
-        pass
+
     def setCrawl(self):
         crawler = FirecrawlApp(api_key='fc-623406fb9b904381bd106e25244b38f5')
         self.crawler = crawler
@@ -198,7 +181,7 @@ class Translater():
                 forcedMarkdown = re.sub( r"<table.*>.+</table>",self.forceTableMarkdown,json.loads(res.text)['data']['content'])
                 content = {"content": forcedMarkdown}
             except Exception as e:
-                raise Exception(f"[error on getMarkdown]: {json.loads(res.text)}")       
+                raise Exception(f"[error on getMarkdown]: {json.loads(res.text) if res else str(e)}")     
             return content
         elif self.markdownAction==MarkdonwAction.MARKDOWNIFY:
             res = requests.get(f"{url}")
@@ -276,10 +259,11 @@ class MarkdownTranslater(Translater):
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
-                logger.error(f"error on url={url},id={id}",e)
+                logger.error(f"error on url={url},id={id},error={str(e)}")
         dumpJson(self.dictionaryFilename,self.dictionary)
         dumpJson(self.taskFilename,self.task)
-        self.imageTranslater.save()
+        if imageAction:
+            self.imageTranslater.save()
 
 class HTMLTranslater(Translater):
     # def __init__(self,url:str|list[str],dictionaryFilename="dictionary.json",taskFilename="task.json"):
@@ -377,8 +361,10 @@ if __name__ == "__main__":
     #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
     #url = "https://global.alipay.com/docs/instorepayment"
     url = "https://global.alipay.com/docs/ac/cashierpay/apm_android"
-
+    #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/activation"
+   
     translater = MarkdownTranslater(url=url,crawlLevel=0, markdownAction=MarkdonwAction.JINA)
     translater.clearErrorMsg()
-    translater.start(imageAction=ImageAction.MARK)
+    #translater.start(imageAction=ImageAction.MARK)
+    translater.start()
     
