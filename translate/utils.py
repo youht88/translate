@@ -7,6 +7,8 @@ import base64
 import json
 from logger import logger
 
+import xml.etree.ElementTree as ET
+
 def get_url_image(url):
     # 从 URL 下载图片
     response = requests.get(url)
@@ -26,12 +28,12 @@ def get_url_image(url):
                 return (image,image_type)
             else:
                 if content_type.index("svg") > -1:
-                    return (None, "svg")
+                    return (response.content, "svg")
                 else:
-                    print("无法识别图片类型：", image_type)
+                    logger.debug(f"无法识别图片类型：{image_type}")
                     return (None, None)
     else:
-        print("无法下载图片，状态码：", response.status_code) 
+        logger.debug(f"无法下载图片，状态码：{response.status_code}") 
         return (None, None)
 
 def convert_to_base64(pil_image):
@@ -45,7 +47,7 @@ def loadJson(filename):
         with open(filename,"r",encoding='utf8') as f:
             data = json.load(f)
     except Exception as e:
-        logger.error(f"{filename} error.",e)
+        logger.error(f"{filename} error.")
         data = {}
     return data
 def dumpJson(filename,data):
@@ -53,15 +55,19 @@ def dumpJson(filename,data):
         with open(filename,"w",encoding='utf8') as f:
             json.dump(data,f,ensure_ascii=False,indent=4,sort_keys=True)
     except Exception as e:
-        logger.info(f"{filename} error.",e)
+        logger.info(f"{filename} error.")
 
-def writeFile(filename,text):
+def writeFile(filename,text,mode = "w"):
     # 保存文件
-    with open(filename, "w",encoding="utf8") as f:
-        f.write(text)        
-        logger.info(f"File saved to {filename}")
-def readFile(filename):
-    with open(filename,"r",encoding="utf8") as f:
+    if mode.find("b") > -1:
+        with open(filename, mode) as f:
+            f.write(text)        
+    else:
+        with open(filename, mode,encoding="utf8") as f:
+            f.write(text)        
+    logger.info(f"File saved to {filename}")
+def readFile(filename,mode = "r"):
+    with open(filename,mode,encoding="utf8") as f:
         text = f.read()
     return text
 

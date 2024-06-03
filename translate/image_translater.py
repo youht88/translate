@@ -8,15 +8,17 @@ import os
 from utils import *
 from langchain_utils import *
 from llava import Llava
+import xml.etree.ElementTree as ET
 
 class ImageTranslater():
-    def __init__(self,imageFilename="image.json",check_content=True):
+    def __init__(self,imageFilename="image.json",check_content=False):
         #urllib3_logger = logging.getLogger("urllib3")
         # 设置 urllib3 logger 的级别为 CRITICAL，这样只有严重的错误才会被记录
         #urllib3_logger.setLevel(logging.CRITICAL)
 
         #self.image_url = image_url
-        self.chain = self.get_chain()
+        self.ocr_chain = self.get_ocr_chain()
+        self.svg_chain = self.get_svg_chain()
         self.ocr =  PaddleOCR(use_angle_cls=True, lang='ch', use_gpu=False)  # 可以根据需要选择语言和是否使用角度分类器
         self.font_path = "./Arial.ttf"
         self.imageFilename = imageFilename
@@ -26,7 +28,7 @@ class ImageTranslater():
         self.llava = None
         if self.check_content:
             self.llava = Llava() 
-    def get_chain(self):
+    def get_ocr_chain(self):
         # llm = get_chatopenai_llm(
         #     base_url="https://api.together.xyz/v1",
         #     api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
@@ -49,49 +51,105 @@ class ImageTranslater():
         prompt = get_prompt(systemPromptText)
         chain = prompt | llm
         return chain
+    def get_svg_chain(self):
+        llm = get_chatopenai_llm(
+            base_url="https://api.together.xyz/v1",
+            api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
+            #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
+            model="Qwen/Qwen1.5-72B-Chat",temperature=0.2)
+        systemPromptText = """以下单词或语句出自金融业务的流程图，请将其翻译成中文，
+        要求：
+        1.简单明了，任何情况下不要解释原因，只需要翻译原始内容
+        2.禁止翻译单独的数字
+        3.碰到专有名词、代码、数字、url、程序接口、程序方法名称以及缩写的情况直接输出原始内容
+        4.如果不知道如何翻译则直接输出原始内容
+        5.要保留原始内容的格式。如1. 、1.1、()、[]等
+        """
+        prompt = get_prompt(systemPromptText)
+        chain = prompt | llm
+        return chain
     def save(self):
         dumpJson(self.imageFilename,self.image_task)
+    def get_task_by_id(self,id):
+        return self.image_task.get(id,None)
     def start(self,image_url,mode="mark"):
         # mode : 'replace' | 'mark'
         id = md5(image_url)
+        image_type='png'
         if id not in self.image_task:
             self.image_task[id] = {"url":image_url,"mode":mode}
+        else:
+            image_type = self.image_task[id].get("imageType","png")
         mode_letter = "m" if mode=="mark" else "r"
-        if os.path.exists(f"img_{mode_letter}_{id}.png"):
-            logger.info(f"img_{mode_letter}_{id}.png exists")
-            return
+        if os.path.exists(f"img_{mode_letter}_{id}.{image_type}"):
+            logger.info(f"img_{mode_letter}_{id}.{image_type} exists")
+            return None
         image,image_type = get_url_image(image_url)
         
         if self.llava:
             llava_result = self.llava.start(image)
             print("llava_result:",llava_result)
-
-        result =  self.get_ocr(image)        
-        self.image_task[id]["imageType"]=image_type
-        if not image:
+        
+        if (not image) or (not image_type):
             return None
-        merged_result = self.merge_adjacent_lines(result)
+    
+        if image_type == "svg":
+            writeFile(f"img_{id}.svg",image.decode())
+            self.image_task[id]["imageType"]="svg"
+            self.transform_text_in_svg(id,f"img_{id}.svg",f"img_{mode_letter}_{id}.svg",self.translate_svg_text)
+        else:    
+            image.save(f"img_{id}.{image_type}")
+            result =  self.get_ocr(image)        
+            self.image_task[id]["imageType"]=image_type
+            merged_result = self.merge_adjacent_lines(result)
 
-        if mode == "replace":
-            new_image = self.replace_image(id,image,merged_result)
-        else:
-            new_image = self.mark_image(id,image,merged_result)
+            if mode == "replace":
+                new_image = self.replace_image(id,image,merged_result)
+            else:
+                new_image = self.mark_image(id,image,merged_result)        
+            new_image.save(f"img_{mode_letter}_{id}.{image_type}")
         
-        new_image.save(f"img_{mode_letter}_{id}.png")
-        
-        # plt.imshow(new_image)
-        # plt.axis('off')
-        # plt.show()
-
+            # plt.imshow(new_image)
+            # plt.axis('off')
+            # plt.show()
+     
     def translate_ocr_text(self,text):
-        result = self.chain.invoke(
+        result = self.ocr_chain.invoke(
                 {
                     "input": text,
                 }
             )
         #print(f"{text}-->{result.content}")
         return result.content
+    def translate_svg_text(self,text):
+        result = self.svg_chain.invoke(
+                {
+                    "input": text,
+                }
+            )
+        #print(f"{text}-->{result.content}")
+        return result.content
+    def transform_text_in_svg(self, id, input_svg_path, output_svg_path, transform_function):
+        # 解析 SVG 文件
+        tree = ET.parse(input_svg_path)
+        root = tree.getroot()
 
+        # 查找所有的 <text> 元素
+        trans_result = []
+        for text_elem in root.findall('.//{http://www.w3.org/2000/svg}text'):
+            if text_elem.text:
+                # 转换文本
+                text = text_elem.text
+                if text.isnumeric():
+                    continue
+                translated_text = self.translate_svg_text(text)
+                text_elem.text =  translated_text
+                trans_result.append((text,translated_text))
+                if 'textLength' in text_elem.attrib:
+                    del text_elem.attrib['textLength']
+        self.image_task[id]["result"] = trans_result
+        # 保存修改后的 SVG 文件
+        tree.write(output_svg_path,encoding= "utf-8")
     def get_ocr(self, image):
         if image:
             # 进行OCR识别
@@ -213,6 +271,8 @@ class ImageTranslater():
 
 if __name__ == "__main__":
     #image_url = "https://idocs-assets.marmot-cloud.com/storage/idocs87c36dc8dac653c1/1693280825692-b5bc334d-1898-4142-8e3c-8422cbe43291.png"
-    image_url = "https://idocs-assets.marmot-cloud.com/storage/idocs87c36dc8dac653c1/1693452989511-cb0d69f9-212c-4b4b-ad5e-152de8a24b77.png"
+    #image_url = "https://idocs-assets.marmot-cloud.com/storage/idocs87c36dc8dac653c1/1693452989511-cb0d69f9-212c-4b4b-ad5e-152de8a24b77.png"
+    image_url = "https://idocs-assets.marmot-cloud.com/storage/idocs87c36dc8dac653c1/59592d8b0b42d16db8b6b484b252c17f.svg"
     image_translater = ImageTranslater()
     image_translater.start(image_url,mode="replace")
+    image_translater.save()

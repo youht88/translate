@@ -16,6 +16,7 @@ from enum import Enum
 import random
 
 from logger import logger
+import logging
 
 from utils import *
 from langchain_utils import *
@@ -42,7 +43,7 @@ class Translater():
             self.url = url
             self.task = loadJson(self.taskFilename)
             for url in self.url:
-                id = self.md5(url)
+                id = md5(url)
                 if not self.task.get(id):
                     self.task[id] = {
                         "url": url,
@@ -113,10 +114,10 @@ class Translater():
             model="Qwen/Qwen1.5-72B-Chat",temperature=0.2)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。现在请将下面的markdown格式文档全部翻译成中文。
         注意:
-          1、不要有遗漏
-          2、简单明了
-          3、保留所有空白行，以确保markdown格式正确
-          4、检查翻译的结果，以确保语句通顺
+          1、不要有遗漏,简单明了
+          2、禁止翻译代码中的JSON的key
+          3、保留所有空白行,以确保markdown格式正确
+          4、检查翻译的结果,以确保语句通顺
         \n\n"""
         prompt = get_prompt(systemPromptText)
         chain = prompt | llm
@@ -238,33 +239,55 @@ class MarkdownTranslater(Translater):
                     taskItem["markdownAction"] = str(self.markdownAction)
                 else:
                     originMarkdown = readFile(f"{id}.md")
+                resultMarkdown = None
                 if not os.path.exists(f"{id}_cn.md"):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
                     resultMarkdown = self.translate_markdown_text(self.markdown_chain,originMarkdown)
                     writeFile(f"{id}_cn.md",resultMarkdown)
-                if imageAction:
+                else:
+                    resultMarkdown = readFile(f"{id}_cn.md")
+                if resultMarkdown and imageAction:
                     if not self.imageTranslater:
                         self.imageTranslater = ImageTranslater()
                     if imageAction==ImageAction.REPLACE:
                         with tqdm(total= len(taskItem["imageLinks"])) as pbar: 
                             for imageLink in taskItem["imageLinks"]:
                                 self.imageTranslater.start(imageLink[1],mode="replace")
+                                resultMarkdown = self.replace_img_link(imageLink[1],resultMarkdown)
                                 pbar.update(1)
                     elif imageAction==ImageAction.MARK:
                         with tqdm(total= len(taskItem["imageLinks"])) as pbar: 
                             for imageLink in taskItem["imageLinks"]:
                                 self.imageTranslater.start(imageLink[1],mode="mark")
+                                resultMarkdown = self.replace_img_link(imageLink[1],resultMarkdown)
                                 pbar.update(1)
+                    writeFile(f"{id}_cn.md",resultMarkdown)
                 endTime = time.time() - startTime
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
                 logger.error(f"error on url={url},id={id},error={str(e)}")
+                raise e
         dumpJson(self.dictionaryFilename,self.dictionary)
         dumpJson(self.taskFilename,self.task)
-        if imageAction:
+        if imageAction and self.imageTranslater:
             self.imageTranslater.save()
-
+    def replace_img_link(self,url,text):
+        # 正则表达式模式，匹配 Markdown 图片语法 ![alt_text](image_url)
+        pattern = re.compile(r'!\[([^\]]*)\]\(' + re.escape(url) + r'\)')
+        # 使用新的链接替换所有旧的链接
+        imageId = md5(url)
+        imageTask = self.imageTranslater.get_task_by_id(imageId)
+        if imageTask:
+            if imageTask['mode']=='replace':
+                imageMode = 'r'
+            else:
+                imageMode = 'm'
+            imageType = imageTask['imageType']
+            if imageType and imageType=='svg':
+                newImageLink = f"./img_{imageMode}_{imageId}.{imageType}"
+                result = pattern.sub(r'![\1](' + newImageLink + r')', text)
+        return result                        
 class HTMLTranslater(Translater):
     # def __init__(self,url:str|list[str],dictionaryFilename="dictionary.json",taskFilename="task.json"):
     #     super().__init__(url,dictionaryFilename,taskFilename)
@@ -340,6 +363,7 @@ class HTMLTranslater(Translater):
         self.writeTranslated(translated)
         self.writeDictionary()        
 if __name__ == "__main__":
+    logger.setLevel(logging.INFO)
     '''url = ["https://global.alipay.com/docs/",
     "https://global.alipay.com/docs/ac/flexiblesettlement_en/overview",
     "https://global.alipay.com/docs/ac/scantopay_en/overview",
@@ -353,18 +377,25 @@ if __name__ == "__main__":
     #url = "https://global.alipay.com/docs/ac/cashierpay/overview" #有中文
     #url = "https://global.alipay.com/docs/ac/reconcile/settlement_details"
 
-    #url = "https://global.alipay.com/docs"
+    url = "https://global.alipay.com/docs"
     #url = "https://global.alipay.com/docs/ac/cashierpay/overview"
     #url = "https://global.alipay.com/docs/ac/easypay_en/overview_en"
     #url = "https://global.alipay.com/docs/ac/scantopay_en/overview"
     #url = "https://global.alipay.com/docs/ac/autodebit_en/overview"
     #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
     #url = "https://global.alipay.com/docs/instorepayment"
-    url = "https://global.alipay.com/docs/ac/cashierpay/apm_android"
+    #url = "https://global.alipay.com/docs/ac/cashierpay/apm_android"
     #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/activation"
-   
+    #url = "https://global.alipay.com/docs/ac/cashierpay/urls" #有问题
+    #url = "https://global.alipay.com/docs/ac/ref/sandbox"
+    #url = "https://huggingface.co/davidkim205/Rhea-72b-v0.5/discussions"
+    url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
+    urls = ["https://global.alipay.com/docs/ac/subscriptionpay_en/overview",
+            "https://global.alipay.com/docs/ac/subscriptionpay_en/activation?pageVersion=9",
+            "https://global.alipay.com/docs/ac/subscriptionpay_en/cancel_refund",
+            "https://global.alipay.com/docs/ac/subscriptionpay_en/reconcile"]
     translater = MarkdownTranslater(url=url,crawlLevel=0, markdownAction=MarkdonwAction.JINA)
     translater.clearErrorMsg()
-    #translater.start(imageAction=ImageAction.MARK)
-    translater.start()
+    translater.start(imageAction=ImageAction.MARK)
+    #translater.start()
     

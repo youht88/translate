@@ -92,7 +92,8 @@ def split_text_with_protected_blocks(text,chunk_size,chunk_overlap):
     )
     # 定义匹配脚本代码块的正则表达式
     script_pattern = re.compile(r'((?: {4}.+\n)+)', re.MULTILINE)
-    
+    #script_pattern = re.compile(r"^(\t|(?:\n))*(?:```)(.*?)```", re.MULTILINE)
+
     # 提取表格和脚本块
     tables = extract_blocks(text, table_pattern)
     scripts = extract_blocks(text, script_pattern)
@@ -101,7 +102,7 @@ def split_text_with_protected_blocks(text,chunk_size,chunk_overlap):
     text_with_placeholders = replace_blocks_with_placeholders(text, tables, 'TABLE')
     text_with_placeholders = replace_blocks_with_placeholders(text_with_placeholders, scripts, 'SCRIPT')
     
-    writeFile("new1.md",text_with_placeholders)
+    writeFile("current.md",text_with_placeholders)
     # 拆分文本
     split_parts = split_text(text_with_placeholders,chunk_size=chunk_size,chunk_overlap=chunk_overlap)
     
