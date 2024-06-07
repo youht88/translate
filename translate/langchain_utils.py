@@ -8,9 +8,37 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from langchain.docstore.document import Document
+
+from gradio_client import Client,file
 import re
 from utils import *
+import textwrap
 
+def get_opengpt4o_client(api_key):
+    client = Client("KingNish/OpenGPT-4o")
+    return client
+def opengpt4o_predict(client,prompt="hello",imageUrl=None):
+    imageFile = file(imageUrl) if imageUrl else None
+    result = client.predict(
+            image3=imageFile,
+            prompt3=prompt,
+            api_name="/predict"
+    )
+    return result
+def opengpt4o_chat(client,prompt="hello",imageUrls=[],temperature=0.5,webSearch=True):
+    imageFiles = [file(imageUrl) for imageUrl in imageUrls] if imageUrls else []
+    result = client.predict(
+		message={"text":prompt,"files":imageFiles},
+		request="idefics2-8b-chatty",
+		param_3="Top P Sampling",
+		param_4=temperature,
+		param_5=4096,
+		param_6=1,
+		param_7=0.9,
+		param_8=webSearch,
+		api_name="/chat"
+    )
+    return result
 def get_chatopenai_llm(base_url,api_key,model,temperature=0.7):
     llm = ChatOpenAI(
             base_url=base_url,
@@ -114,9 +142,17 @@ def split_text_with_protected_blocks(text,chunk_size,chunk_overlap):
 
 if __name__ == "__main__":
     
-    markdown_text = readFile("./output1/605aeaf6963a5f13db36dd27533f9ebd.md")
-    split_result = split_text_with_protected_blocks(markdown_text)
-    for index,part in enumerate(split_result):
-        writeFile(f"test-{index}.md",part)
-
+    # markdown_text = readFile("./output1/605aeaf6963a5f13db36dd27533f9ebd.md")
+    # split_result = split_text_with_protected_blocks(markdown_text)
+    # for index,part in enumerate(split_result):
+    #     writeFile(f"test-{index}.md",part)
+    
+    # 测试hf opengpt4o
+    client = get_opengpt4o_client("api_key")
+    prompt = """识别图片的类型，返回JSON格式：
+                {type:图片类型(流程图、架构图、界面图、其他}
+             """
+    result = opengpt4o_predict(client,
+                               prompt=textwrap.dedent(prompt),imageUrl=None)
+    print(result)
 

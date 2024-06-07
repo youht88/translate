@@ -1,3 +1,4 @@
+import sys
 import time
 from urllib.parse import quote, urljoin, urlparse
 from markdownify import markdownify
@@ -9,7 +10,7 @@ import copy
 import hashlib
 import os
 from tqdm import tqdm
-
+import textwrap
 # Install with pip install firecrawl-py
 from firecrawl import FirecrawlApp
 from enum import Enum
@@ -76,29 +77,6 @@ class Translater():
     def verify_args(self):
         assert True
            
-    def translate_markdown_text(self,chain,text):
-        splits = split_markdown_docs(text)
-        blocks = list(map(lambda block:block.page_content,splits))
-        newBlocks = []
-        with tqdm(total= len(blocks)) as pbar:
-            for index,block in enumerate(blocks):
-                try:
-                    #writeFile(f"block_{index}.md",block)
-                    if self.dictionary.get(block):
-                        return self.dictionary[block]
-                    result = chain.invoke(
-                        {
-                            "input": block,
-                        }
-                    )
-                    content = result.content
-                    self.dictionary[text]=content
-                    newBlocks.append(content)
-                    pbar.update(1)
-                except Exception as e:
-                    print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
-                    raise e
-        return "\n\n".join(newBlocks)
     def getMarkdownChain(self):
         # llm = get_chatopenai_llm(
         #     base_url="https://api.together.xyz/v1",
@@ -107,19 +85,20 @@ class Translater():
         #     model="meta-llama/Llama-3-8b-chat-hf",
         #     temperature=0.2
         #     )
-        llm = ChatOpenAI(
+        llm = get_chatopenai_llm(
             base_url="https://api.together.xyz/v1",
             api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
             #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0.2)
+            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。现在请将下面的markdown格式文档全部翻译成中文。
         注意:
-          1、不要有遗漏,简单明了
-          2、禁止翻译代码中的JSON的key
-          3、保留所有空白行,以确保markdown格式正确
-          4、检查翻译的结果,以确保语句通顺
+          1、不要有遗漏,简单明了。
+          2、特别不要遗漏嵌套的mardkown的语法
+          3、禁止翻译代码中的JSON的key
+          4、保留所有空白行,以确保markdown格式正确
+          5、检查翻译的结果,以确保语句通顺
         \n\n"""
-        prompt = get_prompt(systemPromptText)
+        prompt = get_prompt(textwrap.dedent(systemPromptText))
         chain = prompt | llm
         return chain
 
@@ -179,7 +158,9 @@ class Translater():
                 #                 headers={"Accept":"application/json",
                 #                             "X-Return-Format":"markdown"})
                 #强制table转换
+                writeFile("current0.md",json.loads(res.text)['data']['content'])
                 forcedMarkdown = re.sub( r"<table.*>.+</table>",self.forceTableMarkdown,json.loads(res.text)['data']['content'])
+                writeFile("current1.md",forcedMarkdown)
                 content = {"content": forcedMarkdown}
             except Exception as e:
                 raise Exception(f"[error on getMarkdown]: {json.loads(res.text) if res else str(e)}")     
@@ -204,6 +185,31 @@ class MarkdownTranslater(Translater):
     # url为None，则根据self.taskFilename的任务执行
     # url为单个网址，则根据crawlLevel的层级获取url。其中为0表示当前网址，为1表示当前网页的一级链接，以此类推
     # url为网址数组，则忽略crawlLevel，与self.taskFilename的网址合并任务
+    def translate_markdown_text(self,chain,text):
+        splits = split_markdown_docs(text)
+        blocks = list(map(lambda block:block.page_content,splits))
+        newBlocks = []
+        with tqdm(total= len(blocks)) as pbar:
+            for index,block in enumerate(blocks):
+                writeFile(f"part_{index}.md",block)
+                try:
+                    #writeFile(f"block_{index}.md",block)
+                    if self.dictionary.get(block):
+                        return self.dictionary[block]
+                    result = chain.invoke(
+                        {
+                            "input": block,
+                        }
+                    )
+                    content = result.content
+                    self.dictionary[text]=content
+                    writeFile(f"part_{index}_cn.md",content)
+                    newBlocks.append(content)
+                    pbar.update(1)
+                except Exception as e:
+                    print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                    raise e
+        return "\n\n".join(newBlocks)
     def start(self, imageAction:ImageAction|None=None):
         total = len(self.url)
         logger.info(f"begin on {total} urls\n")
@@ -267,7 +273,7 @@ class MarkdownTranslater(Translater):
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
                 logger.error(f"error on url={url},id={id},error={str(e)}")
-                raise e
+                #raise e
         dumpJson(self.dictionaryFilename,self.dictionary)
         dumpJson(self.taskFilename,self.task)
         if imageAction and self.imageTranslater:
@@ -284,42 +290,17 @@ class MarkdownTranslater(Translater):
             else:
                 imageMode = 'm'
             imageType = imageTask['imageType']
+            result = text
             if imageType and imageType=='svg':
                 newImageLink = f"./img_{imageMode}_{imageId}.{imageType}"
                 result = pattern.sub(r'![\1](' + newImageLink + r')', text)
-        return result                        
+        return result
+    def fix_markdown_script(self,markdown):
+        pattern = re.compiler(r'copy\n(.*)X{512}')
+        return pattern.sub(pattern,markdown)
+    def fix_markdown_table(self,markdown):
+        pass                      
 class HTMLTranslater(Translater):
-    # def __init__(self,url:str|list[str],dictionaryFilename="dictionary.json",taskFilename="task.json"):
-    #     super().__init__(url,dictionaryFilename,taskFilename)
-    #     if (self.url):
-    #         self.originFilename="origin.html"
-    #         response = requests.get(self.url)
-    #         self.html = response.text
-    #     else:
-    #         with open(originFilename,"r",encoding="utf8") as f:
-    #             self.html = f.read()
-    #     # 解析 HTML
-    #     self.soup = BeautifulSoup(self.html, "html.parser")
-    def setPrompt(self):
-        systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务，擅长将这些方面的技术文档的翻译。请将以下文字翻译成中文。
-          要求
-          1.简单明了
-          2.碰到专有名词、代码、数字、url、程序接口、程序方法名称以及缩写的情况直接输出原始内容
-          3.如果不需要翻译则直接输出原始内容。例如: 输入 XXX , 输出 XXX
-          4.任何情况下不要解释原因。
-        """
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                
-                (
-                    "system",
-                    systemPromptText,
-                ),
-                ("human", "{input}"),
-            ]
-        )
-        self.prompt = prompt
-        return prompt
     def snipHtml(self,tagObject,beforeNum=2,afterNum=2):
         print(str(tagObject.parent))
         parent = BeautifulSoup(str(tagObject.parent), "html.parser")
@@ -340,7 +321,37 @@ class HTMLTranslater(Translater):
             other.string = '...'
             parent.append(other)
         print(parent,'\n','*'*20,'\n',self.soup)
-    def start(self):
+    def translate_html_text(self,chain,text):
+        soup = BeautifulSoup(text, 'html.parser')
+        for element in soup.find_all(text=True):
+            logger.info(element.parent.name,element.text)
+        splits = split_markdown_docs(text)
+        blocks = list(map(lambda block:block.page_content,splits))
+        blocks = []
+        newBlocks = []
+        with tqdm(total= len(blocks)) as pbar:
+            for index,block in enumerate(blocks):
+                writeFile(f"part_{index}.md",block)
+                try:
+                    #writeFile(f"block_{index}.md",block)
+                    if self.dictionary.get(block):
+                        return self.dictionary[block]
+                    result = chain.invoke(
+                        {
+                            "input": block,
+                        }
+                    )
+                    content = result.content
+                    self.dictionary[text]=content
+                    writeFile(f"part_{index}_cn.md",content)
+                    newBlocks.append(content)
+                    pbar.update(1)
+                except Exception as e:
+                    print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                    raise e
+        resultHtml = soup.prettify("utf-8")
+        return resultHtml.decode("utf-8")
+    def start_old(self):
         # 翻译 HTML 中的文本，指定目标语言为中文
         for element in self.soup.find_all(text=True):
             if element.parent.name not in ["script", "style"]:
@@ -361,9 +372,68 @@ class HTMLTranslater(Translater):
         translated = self.soup.prettify("utf-8")
         self.writeOrigin(self.html)
         self.writeTranslated(translated)
-        self.writeDictionary()        
+        self.writeDictionary() 
+    def start(self, imageAction:ImageAction|None=None):
+        total = len(self.url)
+        logger.info(f"begin on {total} urls\n")
+        startTime = time.time()
+        for index,url in enumerate(self.url):
+            try:
+                id = md5(url)
+                taskItem = self.task.get(id)
+                if not taskItem:
+                    taskItem = {
+                        "url": url,
+                        "metadata": None,
+                        "markdownAction": str(self.markdownAction),
+                    }
+                    self.task[id] = taskItem
+                if taskItem.get('errorMsg'):
+                    logger.error(f"skip on url={url},id={id} ,because it is error ")
+                    continue
+                if not os.path.exists(f"{id}.html"):
+                    logger.info(f"提取html url= {url},id={id} ...")
+                    response = self.getMarkdown(url)
+                    originHtml = response.get("html",None)
+                    originMarkdown = response.get("content",None)
+                    metadata = response.get("metadata",None)
+                    if originMarkdown:
+                        writeFile(f"{id}.md",originMarkdown)
+                        image_links = re.findall(r"!\[(.*?)\]\((.*?)\)",originMarkdown)
+                        taskItem["imageLinks"] = list(map(lambda item:[item[0],item[1],md5(item[1])],image_links))
+                    if originHtml:
+                        writeFile(f"{id}.html",originHtml)
+                    if metadata:
+                        taskItem["metadata"] = metadata
+                    taskItem["markdownAction"] = str(self.markdownAction)
+                else:
+                    originHtml = readFile(f"{id}.html")
+                resultHtml = None
+                if not os.path.exists(f"{id}_cn.html"):
+                    logger.info(f"开始翻译 url= {url},id={id} ...")
+                    resultHtml = self.translate_html_text(self.markdown_chain,originHtml)
+                    writeFile(f"{id}_cn.html",resultHtml)
+                else:
+                    resultHtml = readFile(f"{id}_cn.html")
+                endTime = time.time() - startTime
+                logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
+            except Exception as e:
+                taskItem["errorMsg"] = str(e)
+                logger.error(f"error on url={url},id={id},error={str(e)}")
+                raise e
+        dumpJson(self.dictionaryFilename,self.dictionary)
+        dumpJson(self.taskFilename,self.task)
+        if imageAction and self.imageTranslater:
+            self.imageTranslater.save()       
+
 if __name__ == "__main__":
     logger.setLevel(logging.INFO)
+    url = None
+    if len(sys.argv) > 1:
+        url = sys.argv[1]
+    crawlLevel = 0
+    if len(sys.argv) > 2:
+        crawlLevel = int(sys.argv[2])
     '''url = ["https://global.alipay.com/docs/",
     "https://global.alipay.com/docs/ac/flexiblesettlement_en/overview",
     "https://global.alipay.com/docs/ac/scantopay_en/overview",
@@ -376,26 +446,33 @@ if __name__ == "__main__":
     #url = "https://global.alipay.com/docs/ac/cashierpay/apm_api"
     #url = "https://global.alipay.com/docs/ac/cashierpay/overview" #有中文
     #url = "https://global.alipay.com/docs/ac/reconcile/settlement_details"
-
-    url = "https://global.alipay.com/docs"
-    #url = "https://global.alipay.com/docs/ac/cashierpay/overview"
-    #url = "https://global.alipay.com/docs/ac/easypay_en/overview_en"
-    #url = "https://global.alipay.com/docs/ac/scantopay_en/overview"
-    #url = "https://global.alipay.com/docs/ac/autodebit_en/overview"
-    #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
-    #url = "https://global.alipay.com/docs/instorepayment"
-    #url = "https://global.alipay.com/docs/ac/cashierpay/apm_android"
-    #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/activation"
-    #url = "https://global.alipay.com/docs/ac/cashierpay/urls" #有问题
-    #url = "https://global.alipay.com/docs/ac/ref/sandbox"
-    #url = "https://huggingface.co/davidkim205/Rhea-72b-v0.5/discussions"
-    url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
+    if not url:
+        #url = "https://global.alipay.com/docs"
+        #url = "https://global.alipay.com/docs/ac/cashierpay/overview"
+        #url = "https://global.alipay.com/docs/ac/easypay_en/overview_en"
+        #url = "https://global.alipay.com/docs/ac/scantopay_en/overview"
+        #url = "https://global.alipay.com/docs/ac/autodebit_en/overview"
+        #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
+        #url = "https://global.alipay.com/docs/instorepayment"
+        #url = "https://global.alipay.com/docs/ac/cashierpay/apm_android"
+        #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/activation"
+        #url = "https://global.alipay.com/docs/ac/cashierpay/urls" #有问题
+        #url = "https://global.alipay.com/docs/ac/ref/sandbox"
+        #url = "https://huggingface.co/davidkim205/Rhea-72b-v0.5/discussions"
+        #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
+        url = "https://global.alipay.com/docs/ac/ams/api"
     urls = ["https://global.alipay.com/docs/ac/subscriptionpay_en/overview",
             "https://global.alipay.com/docs/ac/subscriptionpay_en/activation?pageVersion=9",
             "https://global.alipay.com/docs/ac/subscriptionpay_en/cancel_refund",
             "https://global.alipay.com/docs/ac/subscriptionpay_en/reconcile"]
-    translater = MarkdownTranslater(url=url,crawlLevel=0, markdownAction=MarkdonwAction.JINA)
+    ###### markdown模式
+    # translater = MarkdownTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
+    # translater.clearErrorMsg()
+    # translater.start(imageAction=ImageAction.MARK)
+    # #translater.start()
+
+    ###### html模式
+    translater = HTMLTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
     translater.clearErrorMsg()
-    translater.start(imageAction=ImageAction.MARK)
-    #translater.start()
+    translater.start()
     

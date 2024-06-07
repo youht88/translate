@@ -75,3 +75,21 @@ def md5(string):
         m = hashlib.md5()
         m.update(string.encode('utf-8'))
         return m.hexdigest()
+
+def indent_svg(elem, level=0):
+    """
+    Helper function to indent the XML for pretty printing.
+    """
+    i = "\n" + level * "  "
+    if len(elem):
+        if not elem.text or not elem.text.strip():
+            elem.text = i + "  "
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = i
+        for subelem in elem:
+            indent_svg(subelem, level + 1)
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = i
+    else:
+        if level and (not elem.tail or not elem.tail.strip()):
+            elem.tail = i

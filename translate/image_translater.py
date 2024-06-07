@@ -4,7 +4,7 @@ from paddleocr import PaddleOCR, draw_ocr
 from PIL import Image,ImageFont,ImageDraw
 import matplotlib.pyplot as plt
 import os
-
+import textwrap
 from utils import *
 from langchain_utils import *
 from llava import Llava
@@ -40,15 +40,16 @@ class ImageTranslater():
             base_url="https://api.together.xyz/v1",
             api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
             #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0.2)
+            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。现在将下面的英文文字翻译成中文
-            要求
+            要求:
             1.简单明了，任何情况下不要解释原因，只需要翻译原始内容
             2.碰到专有名词、代码、数字、url、程序接口、程序方法名称以及缩写的情况直接输出原始内容
             3.如果不知道如何翻译则直接输出原始内容
             4.要保留原始内容的格式。如1. 、1.1、()、[]等
+            \n\n
         """
-        prompt = get_prompt(systemPromptText)
+        prompt = get_prompt(textwrap.dedent(systemPromptText))
         chain = prompt | llm
         return chain
     def get_svg_chain(self):
@@ -56,7 +57,7 @@ class ImageTranslater():
             base_url="https://api.together.xyz/v1",
             api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
             #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0.2)
+            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         systemPromptText = """以下单词或语句出自金融业务的流程图，请将其翻译成中文，
         要求：
         1.简单明了，任何情况下不要解释原因，只需要翻译原始内容
@@ -64,8 +65,9 @@ class ImageTranslater():
         3.碰到专有名词、代码、数字、url、程序接口、程序方法名称以及缩写的情况直接输出原始内容
         4.如果不知道如何翻译则直接输出原始内容
         5.要保留原始内容的格式。如1. 、1.1、()、[]等
+        \n\n
         """
-        prompt = get_prompt(systemPromptText)
+        prompt = get_prompt(textwrap.dedent(systemPromptText))
         chain = prompt | llm
         return chain
     def save(self):
@@ -148,8 +150,10 @@ class ImageTranslater():
                 if 'textLength' in text_elem.attrib:
                     del text_elem.attrib['textLength']
         self.image_task[id]["result"] = trans_result
+        # 美化svg文档
+        indent_svg(root)
         # 保存修改后的 SVG 文件
-        tree.write(output_svg_path,encoding= "utf-8")
+        tree.write(output_svg_path,encoding= "utf-8", xml_declaration=True)
     def get_ocr(self, image):
         if image:
             # 进行OCR识别

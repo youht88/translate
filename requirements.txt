@@ -8,3 +8,5 @@ opencv-python
 paddlepaddle
 paddleocr
 logger
+gradio_client
+playwright
