@@ -101,7 +101,31 @@ class Translater():
         prompt = get_prompt(textwrap.dedent(systemPromptText))
         chain = prompt | llm
         return chain
-
+    def getHTMLChain(self):
+        # llm = get_chatopenai_llm(
+        #     base_url="https://api.together.xyz/v1",
+        #     api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
+        #     #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
+        #     model="meta-llama/Llama-3-8b-chat-hf",
+        #     temperature=0.2
+        #     )
+        llm = get_chatopenai_llm(
+            base_url="https://api.together.xyz/v1",
+            api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
+            #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
+            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
+        systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。
+    现在请将下面的HTML格式文档全部翻译成中文,输出HTML文档。
+    要求:
+        1、不要有遗漏,简单明了。
+        2、特别不要遗漏嵌套的HTML的语法
+        3、禁止翻译代码中的JSON的key
+        4、保留所有原始的HTML格式
+        5、检查翻译的结果,以确保语句通顺
+    \n\n"""
+        prompt = get_prompt(textwrap.dedent(systemPromptText))
+        chain = prompt | llm
+        return chain
     def setCrawl(self):
         crawler = FirecrawlApp(api_key='fc-623406fb9b904381bd106e25244b38f5')
         self.crawler = crawler
@@ -475,4 +499,19 @@ if __name__ == "__main__":
     translater = HTMLTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
     translater.clearErrorMsg()
     translater.start()
+
+    '''
+    表格
+    //div[@data-lake-card="table"]
+    代码段
+    //div[@data-lake-card="codeblock"]
+    图片
+    //span[@data-lake-card="image"]
+    右侧侧边导航
+    //nav
+    左侧菜单导航
+    //aside
+    主内容
+    //article
+    '''
     
