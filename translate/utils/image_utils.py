@@ -1,10 +1,8 @@
-import hashlib
-import requests
 from io import BytesIO
 import imghdr
 from PIL import Image
 import base64
-import json
+import requests
 from logger import logger
 
 import xml.etree.ElementTree as ET
@@ -41,40 +39,6 @@ def convert_to_base64(pil_image):
     pil_image.save(buffered, format="PNG")  # You can change the format if needed
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     return img_str
-
-def loadJson(filename):
-    try:
-        with open(filename,"r",encoding='utf8') as f:
-            data = json.load(f)
-    except Exception as e:
-        logger.error(f"{filename} error.")
-        data = {}
-    return data
-def dumpJson(filename,data):
-    try:
-        with open(filename,"w",encoding='utf8') as f:
-            json.dump(data,f,ensure_ascii=False,indent=4,sort_keys=True)
-    except Exception as e:
-        logger.info(f"{filename} error.")
-
-def writeFile(filename,text,mode = "w"):
-    # 保存文件
-    if mode.find("b") > -1:
-        with open(filename, mode) as f:
-            f.write(text)        
-    else:
-        with open(filename, mode,encoding="utf8") as f:
-            f.write(text)        
-    logger.info(f"File saved to {filename}")
-def readFile(filename,mode = "r"):
-    with open(filename,mode,encoding="utf8") as f:
-        text = f.read()
-    return text
-
-def md5(string):
-        m = hashlib.md5()
-        m.update(string.encode('utf-8'))
-        return m.hexdigest()
 
 def indent_svg(elem, level=0):
     """

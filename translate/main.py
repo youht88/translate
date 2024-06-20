@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 import re 
 import json
 import copy
-import hashlib
 import os
 from tqdm import tqdm
 import textwrap
@@ -19,8 +18,9 @@ import random
 from logger import logger
 import logging
 
-from utils import *
-from langchain_utils import *
+from utils.file_utils import FileLib
+from utils.crypto_utils import HashLib
+from utils.langchain_utils import *
 
 from image_translater import ImageTranslater
 
@@ -42,37 +42,37 @@ class Translater():
         self.imageTranslater = None
         if type(url)==list:
             self.url = url
-            self.task = loadJson(self.taskFilename)
+            self.task = FileLib.loadJson(self.taskFilename)
             for url in self.url:
-                id = md5(url)
+                id = HashLib.md5(url)
                 if not self.task.get(id):
                     self.task[id] = {
                         "url": url,
                         "metadata": None,
                         "markdownAction": str(self.markdownAction),
                     }
-            dumpJson(self.taskFilename,self.task)
+            FileLib.dumpJson(self.taskFilename,self.task)
         elif url!=None:
             self.url = list(self.getAllLinks(url))
-            self.task = loadJson(self.taskFilename)
+            self.task = FileLib.loadJson(self.taskFilename)
             for url in self.url:
-                id = md5(url)
+                id = HashLib.md5(url)
                 if not self.task.get(id):
                     self.task[id] = {
                         "url": url,
                         "metadata": None,
                         "markdownAction": str(self.markdownAction),
                     }
-            dumpJson(self.taskFilename,self.task)
+            FileLib.dumpJson(self.taskFilename,self.task)
         else:
-            self.task = loadJson(self.taskFilename)
+            self.task = FileLib.loadJson(self.taskFilename)
             self.url = list(map(lambda x:x["url"],self.task.values()))
         self.verify_args()
         self.dictionaryFilename = dictionaryFilename
         self.dict={}
         self.markdown_chain = self.getMarkdownChain()
         self.setCrawl()
-        self.dictionary = loadJson(dictionaryFilename)
+        self.dictionary = FileLib.loadJson(dictionaryFilename)
 
     def verify_args(self):
         assert True
@@ -134,7 +134,7 @@ class Translater():
         for id,taskItem in self.task.items():
             if taskItem.get("errorMsg") and taskItem.get("errorMsg")!="":
                 taskItem["errorMsg"] = ""
-        dumpJson(self.taskFilename,self.task)
+        FileLib.dumpJson(self.taskFilename,self.task)
     def getLinks(self,url):
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -182,9 +182,9 @@ class Translater():
                 #                 headers={"Accept":"application/json",
                 #                             "X-Return-Format":"markdown"})
                 #强制table转换
-                writeFile("current0.md",json.loads(res.text)['data']['content'])
+                FileLib.writeFile("current0.md",json.loads(res.text)['data']['content'])
                 forcedMarkdown = re.sub( r"<table.*>.+</table>",self.forceTableMarkdown,json.loads(res.text)['data']['content'])
-                writeFile("current1.md",forcedMarkdown)
+                FileLib.writeFile("current1.md",forcedMarkdown)
                 content = {"content": forcedMarkdown}
             except Exception as e:
                 raise Exception(f"[error on getMarkdown]: {json.loads(res.text) if res else str(e)}")     
@@ -215,7 +215,7 @@ class MarkdownTranslater(Translater):
         newBlocks = []
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
-                writeFile(f"part_{index}.md",block)
+                FileLib.writeFile(f"part_{index}.md",block)
                 try:
                     #writeFile(f"block_{index}.md",block)
                     if self.dictionary.get(block):
@@ -227,7 +227,7 @@ class MarkdownTranslater(Translater):
                     )
                     content = result.content
                     self.dictionary[text]=content
-                    writeFile(f"part_{index}_cn.md",content)
+                    FileLib.writeFile(f"part_{index}_cn.md",content)
                     newBlocks.append(content)
                     pbar.update(1)
                 except Exception as e:
@@ -240,7 +240,7 @@ class MarkdownTranslater(Translater):
         startTime = time.time()
         for index,url in enumerate(self.url):
             try:
-                id = md5(url)
+                id = HashLib.md5(url)
                 taskItem = self.task.get(id)
                 if not taskItem:
                     taskItem = {
@@ -259,23 +259,23 @@ class MarkdownTranslater(Translater):
                     originMarkdown = response.get("content",None)
                     metadata = response.get("metadata",None)
                     if originMarkdown:
-                        writeFile(f"{id}.md",originMarkdown)
+                        FileLib.writeFile(f"{id}.md",originMarkdown)
                         image_links = re.findall(r"!\[(.*?)\]\((.*?)\)",originMarkdown)
-                        taskItem["imageLinks"] = list(map(lambda item:[item[0],item[1],md5(item[1])],image_links))
+                        taskItem["imageLinks"] = list(map(lambda item:[item[0],item[1],HashLib.md5(item[1])],image_links))
                     if originHtml:
-                        writeFile(f"{id}.html",originHtml)
+                        FileLib.writeFile(f"{id}.html",originHtml)
                     if metadata:
                         taskItem["metadata"] = metadata
                     taskItem["markdownAction"] = str(self.markdownAction)
                 else:
-                    originMarkdown = readFile(f"{id}.md")
+                    originMarkdown = FileLib.readFile(f"{id}.md")
                 resultMarkdown = None
                 if not os.path.exists(f"{id}_cn.md"):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
                     resultMarkdown = self.translate_markdown_text(self.markdown_chain,originMarkdown)
-                    writeFile(f"{id}_cn.md",resultMarkdown)
+                    FileLib.writeFile(f"{id}_cn.md",resultMarkdown)
                 else:
-                    resultMarkdown = readFile(f"{id}_cn.md")
+                    resultMarkdown = FileLib.readFile(f"{id}_cn.md")
                 if resultMarkdown and imageAction:
                     if not self.imageTranslater:
                         self.imageTranslater = ImageTranslater()
@@ -291,22 +291,22 @@ class MarkdownTranslater(Translater):
                                 self.imageTranslater.start(imageLink[1],mode="mark")
                                 resultMarkdown = self.replace_img_link(imageLink[1],resultMarkdown)
                                 pbar.update(1)
-                    writeFile(f"{id}_cn.md",resultMarkdown)
+                    FileLib.writeFile(f"{id}_cn.md",resultMarkdown)
                 endTime = time.time() - startTime
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
                 logger.error(f"error on url={url},id={id},error={str(e)}")
                 #raise e
-        dumpJson(self.dictionaryFilename,self.dictionary)
-        dumpJson(self.taskFilename,self.task)
+        FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
+        FileLib.dumpJson(self.taskFilename,self.task)
         if imageAction and self.imageTranslater:
             self.imageTranslater.save()
     def replace_img_link(self,url,text):
         # 正则表达式模式，匹配 Markdown 图片语法 ![alt_text](image_url)
         pattern = re.compile(r'!\[([^\]]*)\]\(' + re.escape(url) + r'\)')
         # 使用新的链接替换所有旧的链接
-        imageId = md5(url)
+        imageId = HashLib.md5(url)
         imageTask = self.imageTranslater.get_task_by_id(imageId)
         if imageTask:
             if imageTask['mode']=='replace':
@@ -355,7 +355,7 @@ class HTMLTranslater(Translater):
         newBlocks = []
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
-                writeFile(f"part_{index}.md",block)
+                FileLib.writeFile(f"part_{index}.md",block)
                 try:
                     #writeFile(f"block_{index}.md",block)
                     if self.dictionary.get(block):
@@ -367,7 +367,7 @@ class HTMLTranslater(Translater):
                     )
                     content = result.content
                     self.dictionary[text]=content
-                    writeFile(f"part_{index}_cn.md",content)
+                    FileLib.writeFile(f"part_{index}_cn.md",content)
                     newBlocks.append(content)
                     pbar.update(1)
                 except Exception as e:
@@ -403,7 +403,7 @@ class HTMLTranslater(Translater):
         startTime = time.time()
         for index,url in enumerate(self.url):
             try:
-                id = md5(url)
+                id = HashLib.md5(url)
                 taskItem = self.task.get(id)
                 if not taskItem:
                     taskItem = {
@@ -422,31 +422,31 @@ class HTMLTranslater(Translater):
                     originMarkdown = response.get("content",None)
                     metadata = response.get("metadata",None)
                     if originMarkdown:
-                        writeFile(f"{id}.md",originMarkdown)
+                        FileLib.writeFile(f"{id}.md",originMarkdown)
                         image_links = re.findall(r"!\[(.*?)\]\((.*?)\)",originMarkdown)
-                        taskItem["imageLinks"] = list(map(lambda item:[item[0],item[1],md5(item[1])],image_links))
+                        taskItem["imageLinks"] = list(map(lambda item:[item[0],item[1],HashLib.md5(item[1])],image_links))
                     if originHtml:
-                        writeFile(f"{id}.html",originHtml)
+                        FileLib.writeFile(f"{id}.html",originHtml)
                     if metadata:
                         taskItem["metadata"] = metadata
                     taskItem["markdownAction"] = str(self.markdownAction)
                 else:
-                    originHtml = readFile(f"{id}.html")
+                    originHtml = FileLib.readFile(f"{id}.html")
                 resultHtml = None
                 if not os.path.exists(f"{id}_cn.html"):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
                     resultHtml = self.translate_html_text(self.markdown_chain,originHtml)
-                    writeFile(f"{id}_cn.html",resultHtml)
+                    FileLib.writeFile(f"{id}_cn.html",resultHtml)
                 else:
-                    resultHtml = readFile(f"{id}_cn.html")
+                    resultHtml = FileLib.readFile(f"{id}_cn.html")
                 endTime = time.time() - startTime
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
                 logger.error(f"error on url={url},id={id},error={str(e)}")
                 raise e
-        dumpJson(self.dictionaryFilename,self.dictionary)
-        dumpJson(self.taskFilename,self.task)
+        FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
+        FileLib.dumpJson(self.taskFilename,self.task)
         if imageAction and self.imageTranslater:
             self.imageTranslater.save()       
 

@@ -11,7 +11,7 @@ from langchain.docstore.document import Document
 
 from gradio_client import Client,file
 import re
-from utils import *
+from file_utils import *
 import textwrap
 
 def get_opengpt4o_client(api_key):
@@ -130,7 +130,7 @@ def split_text_with_protected_blocks(text,chunk_size,chunk_overlap):
     text_with_placeholders = replace_blocks_with_placeholders(text, tables, 'TABLE')
     text_with_placeholders = replace_blocks_with_placeholders(text_with_placeholders, scripts, 'SCRIPT')
     
-    writeFile("current.md",text_with_placeholders)
+    Fileutils.writeFile("current.md",text_with_placeholders)
     # 拆分文本
     split_parts = split_text(text_with_placeholders,chunk_size=chunk_size,chunk_overlap=chunk_overlap)
     

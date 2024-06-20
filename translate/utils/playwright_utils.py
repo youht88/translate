@@ -2,14 +2,14 @@ import asyncio
 from pydoc import writedoc
 from playwright.async_api import async_playwright, Browser, Page
 import time
-from utils import *
+from translate.utils import *
 from logger import logger
 import shlex
 from langchain_utils import *
-from bs4 import BeautifulSoup
+from soup_utils import SoupLib
 from tqdm import tqdm
 
-class PlaywrightWrapper:
+class PlaywrightLib:
     def __init__(self, browser_type="chromium", headless=False):
         self.browser_type = browser_type
         self.headless = headless
@@ -178,49 +178,8 @@ class PlaywrightWrapper:
             (xpath1,xpath2,include_start,include_end),
         )        
         return html
-    def html2soup(self, html):
-        #提取被```html包裹的部分，如果没有则转换整个html
-        p=r"```html\n(.*?)\n```"
-        res = re.findall(p,html,re.DOTALL)
-        if res:
-            return BeautifulSoup(res[0], "html.parser")
-        else:
-            return BeautifulSoup(html, "html.parser")
-
-    def soup2html(self, soup):
-        return soup.prettify()
-    def hash_attribute(self, soup, key = 'hash'):
-        # 将soup中的所有标签的属性转化为hash，返回（new_soup，attribute_map）元祖
-        attribute_dict = {}
-        for tag in soup.find_all(True):  # 查找所有标签
-            if tag.attrs:  # 如果标签有属性
-                # 将属性字典转换为 "key1='value1' key2='value2'" 格式的字符串
-                original_attributes = json.dumps(tag.attrs)
-
-                # 计算 MD5 哈希值
-                hash_value = md5(original_attributes)
-
-                # 保存原始属性到字典
-                attribute_dict[hash_value] = original_attributes
-
-                # 修改标签属性
-                tag.attrs.clear()  # 清除所有现有属性
-                tag.attrs[key] = hash_value
-
-        return soup, attribute_dict
-    def unhash_attribute(self,soup, attribute_dict, key = 'hash'):
-        # 根据attribute_map还原soup,返回还原后的soup
-        for tag in soup.find_all(True):
-            if key in tag.attrs:
-                hash_value = tag.attrs[key]
-                if hash_value in attribute_dict:
-                    # 从字典中获取原始属性
-                    original_attributes = json.loads(attribute_dict[hash_value])
-
-                    # 还原原始属性
-                    tag.attrs.clear()  # 清除现有属性
-                    tag.attrs.update(original_attributes)
-        return soup
+    
+     
 async def main():
     #url = "https://global.alipay.com/docs/ac/ams/payment_agreement"
     #url = "https://global.alipay.com/docs/ac/ams/payment_cashier"
@@ -256,7 +215,7 @@ async def main():
     # html_cn = 
     # writeFile("test.html",html_cn.content)
     
-    async with PlaywrightWrapper(headless=False) as pw:
+    async with PlaywrightLib(headless=False) as pw:
         await pw.goto(url,start_log="开始加载页面",end_log="页面加载完成",wait_until="domcontentloaded")
 
         # pw.wait_for_selector("#Requestparameters")
@@ -289,15 +248,15 @@ async def main():
                 end = end[1:]
                 title = item.get("title")
                 html_snip = await pw.get_html_between_xpaths(f"//*[@id='{start}']",f"//*[@id='{end}']",include_start=True,include_end=False)
-                soup_snip = pw.html2soup(html_snip)
-                hash_soup_snip,attribute_dict = pw.hash_attribute(soup_snip) 
-                hash_html_snip_cn = chain.invoke({"input":pw.soup2html(hash_soup_snip)})
-                hash_soup_snip_cn = pw.html2soup(hash_html_snip_cn.content)
-                soup_snip_cn= pw.unhash_attribute(hash_soup_snip_cn,attribute_dict)
-                html_snip_cn = pw.soup2html(soup_snip_cn)
+                soup_snip = SoupLib.html2soup(html_snip)
+                attribute_dict = SoupLib.hash_attribute(soup_snip) 
+                hash_html_snip_cn = chain.invoke({"input":pw.soup2html(soup_snip)})
+                hash_soup_snip_cn = SoupLib.html2soup(hash_html_snip_cn.content)
+                SoupLib.unhash_attribute(hash_soup_snip_cn,attribute_dict)
+                html_snip_cn = SoupLib.soup2html(hash_soup_snip_cn)
                 html_cn += html_snip_cn
                 pbar.update(1)
-        writeFile("test_cn.html",html_cn)
+        FileLib.writeFile("test_cn.html",html_cn)
         # pw.click("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]",start_log="点击Req Show all按钮")
         # pw.click("//div[@id='Responseparameters']//button//span[contains(text(),'Show all')]",start_log="点击Res Show all按钮")
         # pw.wait_for_selector("//div[@id='Requestparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Req Hide all按钮")

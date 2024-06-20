@@ -5,8 +5,10 @@ from PIL import Image,ImageFont,ImageDraw
 import matplotlib.pyplot as plt
 import os
 import textwrap
-from utils import *
-from langchain_utils import *
+from utils.file_utils import *
+from utils.crypto_utils  import *
+from utils.image_utils import *
+from utils.langchain_utils import *
 from llava import Llava
 import xml.etree.ElementTree as ET
 
@@ -22,7 +24,7 @@ class ImageTranslater():
         self.ocr =  PaddleOCR(use_angle_cls=True, lang='ch', use_gpu=False)  # 可以根据需要选择语言和是否使用角度分类器
         self.font_path = "./Arial.ttf"
         self.imageFilename = imageFilename
-        self.image_task = loadJson(self.imageFilename)
+        self.image_task = FileLib.loadJson(self.imageFilename)
 
         self.check_content = check_content
         self.llava = None
@@ -71,12 +73,12 @@ class ImageTranslater():
         chain = prompt | llm
         return chain
     def save(self):
-        dumpJson(self.imageFilename,self.image_task)
+        FileLib.dumpJson(self.imageFilename,self.image_task)
     def get_task_by_id(self,id):
         return self.image_task.get(id,None)
     def start(self,image_url,mode="mark"):
         # mode : 'replace' | 'mark'
-        id = md5(image_url)
+        id = HashLib.md5(image_url)
         image_type='png'
         if id not in self.image_task:
             self.image_task[id] = {"url":image_url,"mode":mode}
@@ -96,7 +98,7 @@ class ImageTranslater():
             return None
     
         if image_type == "svg":
-            writeFile(f"img_{id}.svg",image.decode())
+            FileLib.writeFile(f"img_{id}.svg",image.decode())
             self.image_task[id]["imageType"]="svg"
             self.transform_text_in_svg(id,f"img_{id}.svg",f"img_{mode_letter}_{id}.svg",self.translate_svg_text)
         else:    
