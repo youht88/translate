@@ -54,7 +54,10 @@ class Translater():
                     }
             FileLib.dumpJson(self.taskFilename,self.task)
         elif url!=None:
-            self.url = list(self.getAllLinks(url))
+            if self.crawlLevel==0:
+                self.url = [url]
+            else:
+                self.url = list(self.getAllLinks(url))
             self.task = FileLib.loadJson(self.taskFilename)
             for url in self.url:
                 id = HashLib.md5(url)
@@ -109,16 +112,17 @@ class Translater():
         #     model="meta-llama/Llama-3-8b-chat-hf",
         #     temperature=0.2
         #     )
-        # llm = get_chatopenai_llm(
-        #     base_url="https://api.together.xyz/v1",
-        #     api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
-        #     model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         llm = get_chatopenai_llm(
-            api_key= self.config.get("LLM",{}).get("SILICONFLOW_API_KEY"),
-            base_url="https://api.siliconflow.cn/v1",
-            model="alibaba/Qwen2-57B-A14B-Instruct",
-            temperature=0)
-        systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。
+            base_url="https://api.together.xyz/v1",
+            api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
+            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
+        # llm = get_chatopenai_llm(
+        #     api_key= self.config.get("LLM",{}).get("SILICONFLOW_API_KEY"),
+        #     base_url="https://api.siliconflow.cn/v1",
+        #     #model="alibaba/Qwen2-57B-A14B-Instruct",
+        #     model="alibaba/Qwen1.5-110B-Chat",
+        #     temperature=0)
+        systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务及技术接口,擅长这些方面的技术文档的翻译。
     现在请将下面的HTML格式的英文文本全部翻译成中文,输出HTML文档,不要做任何解释。输出格式为```html ...```
     要求:
         1、尽量理解标签结构及上下文，该翻译的尽量翻译，不要有遗漏,简单明了
@@ -495,13 +499,15 @@ if __name__ == "__main__":
     # translater.start(imageAction=ImageAction.MARK)
     # #translater.start()
 
-    ###### html模式
+    # ###### html模式
     translater = HTMLTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
     # #translater.clearErrorMsg()
     # translater.start()
+    
+    ######  测试翻译html片段
     print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
     html = FileLib.readFile("part_13.html")
-    print(2,"html")
+    print(2,html)
     res = translater.html_chain.invoke({"input":html})
     print(res.content)
     '''
