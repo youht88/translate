@@ -21,7 +21,8 @@ import logging
 from utils.file_utils import FileLib
 from utils.crypto_utils import HashLib
 from utils.langchain_utils import *
-
+from utils.soup_utils import SoupLib
+from utils.config_utils import Config
 from image_translater import ImageTranslater
 
 class MarkdonwAction(Enum):
@@ -31,7 +32,6 @@ class MarkdonwAction(Enum):
 class ImageAction(Enum):
     REPLACE = 1
     MARK = 2
-
 class Translater():
     def __init__(self,url:str|list[str]|None=None,dictionaryFilename="dictionary.json",
                  taskFilename="task.json",crawlLevel=1,limit=10,markdownAction=MarkdonwAction.CRAWLER):
@@ -40,6 +40,7 @@ class Translater():
         self.crawlLevel = crawlLevel
         self.taskFilename = taskFilename
         self.imageTranslater = None
+        self.config = Config()
         if type(url)==list:
             self.url = url
             self.task = FileLib.loadJson(self.taskFilename)
@@ -71,6 +72,7 @@ class Translater():
         self.dictionaryFilename = dictionaryFilename
         self.dict={}
         self.markdown_chain = self.getMarkdownChain()
+        self.html_chain = self.getHTMLChain()
         self.setCrawl()
         self.dictionary = FileLib.loadJson(dictionaryFilename)
 
@@ -80,14 +82,13 @@ class Translater():
     def getMarkdownChain(self):
         # llm = get_chatopenai_llm(
         #     base_url="https://api.together.xyz/v1",
-        #     api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
-        #     #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
+        #     api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
         #     model="meta-llama/Llama-3-8b-chat-hf",
         #     temperature=0.2
         #     )
         llm = get_chatopenai_llm(
             base_url="https://api.together.xyz/v1",
-            api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
+            api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
             #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
             model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。现在请将下面的markdown格式文档全部翻译成中文。
@@ -104,25 +105,28 @@ class Translater():
     def getHTMLChain(self):
         # llm = get_chatopenai_llm(
         #     base_url="https://api.together.xyz/v1",
-        #     api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
-        #     #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
+        #     api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
         #     model="meta-llama/Llama-3-8b-chat-hf",
         #     temperature=0.2
         #     )
+        # llm = get_chatopenai_llm(
+        #     base_url="https://api.together.xyz/v1",
+        #     api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
+        #     model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         llm = get_chatopenai_llm(
-            base_url="https://api.together.xyz/v1",
-            api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
-            #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
+            api_key= self.config.get("LLM",{}).get("SILICONFLOW_API_KEY"),
+            base_url="https://api.siliconflow.cn/v1",
+            model="alibaba/Qwen2-57B-A14B-Instruct",
+            temperature=0)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。
-    现在请将下面的HTML格式文档全部翻译成中文,输出HTML文档。
+    现在请将下面的HTML格式的英文文本全部翻译成中文,输出HTML文档,不要做任何解释。输出格式为```html ...```
     要求:
-        1、不要有遗漏,简单明了。
-        2、特别不要遗漏嵌套的HTML的语法
-        3、禁止翻译代码中的JSON的key
-        4、保留所有原始的HTML格式
+        1、尽量理解标签结构及上下文，该翻译的尽量翻译，不要有遗漏,简单明了
+        2、禁止翻译代码中的非注释内容
+        3、表格中全部大写字母的为错误代码，禁止翻译
+        4、保持所有原始的HTML格式及结构
         5、检查翻译的结果,以确保语句通顺
-    \n\n"""
+    """
         prompt = get_prompt(textwrap.dedent(systemPromptText))
         chain = prompt | llm
         return chain
@@ -346,18 +350,15 @@ class HTMLTranslater(Translater):
             parent.append(other)
         print(parent,'\n','*'*20,'\n',self.soup)
     def translate_html_text(self,chain,text):
-        soup = BeautifulSoup(text, 'html.parser')
-        for element in soup.find_all(text=True):
-            logger.info(element.parent.name,element.text)
-        splits = split_markdown_docs(text)
-        blocks = list(map(lambda block:block.page_content,splits))
+        soup = SoupLib.html2soup(text)
+        hash_dict = SoupLib.hash_attribute(soup)
         blocks = []
         newBlocks = []
+        SoupLib.walk(soup, size=1000,blocks=blocks)
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
-                FileLib.writeFile(f"part_{index}.md",block)
+                FileLib.writeFile(f"part_{index}.html",block)
                 try:
-                    #writeFile(f"block_{index}.md",block)
                     if self.dictionary.get(block):
                         return self.dictionary[block]
                     result = chain.invoke(
@@ -367,12 +368,14 @@ class HTMLTranslater(Translater):
                     )
                     content = result.content
                     self.dictionary[text]=content
-                    FileLib.writeFile(f"part_{index}_cn.md",content)
+                    FileLib.writeFile(f"part_{index}_cn.html",content)
                     newBlocks.append(content)
                     pbar.update(1)
                 except Exception as e:
                     print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                     raise e
+        SoupLib.unwalk(soup,newBlocks)
+        SoupLib.unhash_attribute(soup,hash_dict)
         resultHtml = soup.prettify("utf-8")
         return resultHtml.decode("utf-8")
     def start_old(self):
@@ -417,16 +420,13 @@ class HTMLTranslater(Translater):
                     continue
                 if not os.path.exists(f"{id}.html"):
                     logger.info(f"提取html url= {url},id={id} ...")
-                    response = self.getMarkdown(url)
-                    originHtml = response.get("html",None)
-                    originMarkdown = response.get("content",None)
-                    metadata = response.get("metadata",None)
-                    if originMarkdown:
-                        FileLib.writeFile(f"{id}.md",originMarkdown)
-                        image_links = re.findall(r"!\[(.*?)\]\((.*?)\)",originMarkdown)
-                        taskItem["imageLinks"] = list(map(lambda item:[item[0],item[1],HashLib.md5(item[1])],image_links))
+                    response = requests.get(url)
+                    originHtml = response.text
+                    metadata = None
                     if originHtml:
                         FileLib.writeFile(f"{id}.html",originHtml)
+                        #image_links = re.findall(r"!\[(.*?)\]\((.*?)\)",originMarkdown)
+                        #taskItem["imageLinks"] = list(map(lambda item:[item[0],item[1],HashLib.md5(item[1])],image_links))
                     if metadata:
                         taskItem["metadata"] = metadata
                     taskItem["markdownAction"] = str(self.markdownAction)
@@ -435,7 +435,7 @@ class HTMLTranslater(Translater):
                 resultHtml = None
                 if not os.path.exists(f"{id}_cn.html"):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
-                    resultHtml = self.translate_html_text(self.markdown_chain,originHtml)
+                    resultHtml = self.translate_html_text(self.html_chain,originHtml)
                     FileLib.writeFile(f"{id}_cn.html",resultHtml)
                 else:
                     resultHtml = FileLib.readFile(f"{id}_cn.html")
@@ -497,9 +497,13 @@ if __name__ == "__main__":
 
     ###### html模式
     translater = HTMLTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
-    translater.clearErrorMsg()
-    translater.start()
-
+    # #translater.clearErrorMsg()
+    # translater.start()
+    print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
+    html = FileLib.readFile("part_13.html")
+    print(2,"html")
+    res = translater.html_chain.invoke({"input":html})
+    print(res.content)
     '''
     表格
     //div[@data-lake-card="table"]

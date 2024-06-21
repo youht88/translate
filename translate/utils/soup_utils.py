@@ -1,9 +1,11 @@
 import re
 import json
 from bs4 import BeautifulSoup
-from bs4.element import Tag
-from crypto_utils import HashLib
-from file_utils import *    
+from bs4.element import Tag, Comment
+from utils.crypto_utils import HashLib
+from utils.file_utils import *    
+import time
+import requests
 
 class SoupLib():
     @classmethod
@@ -12,9 +14,14 @@ class SoupLib():
         p=r"```html\n(.*?)\n```"
         res = re.findall(p,html,re.DOTALL)
         if res:
-            return BeautifulSoup(res[0], "html.parser")
+            soup =  BeautifulSoup(res[0], "html.parser")
         else:
-            return BeautifulSoup(html, "html.parser")
+            soup = BeautifulSoup(html, "html.parser")
+        # 将标签外部的多个空白字符替换成一个空格
+        for element in soup.find_all(string=True):
+            if element.parent.name not in ['script', 'style']:  # 忽略 <script> 和 <style> 标签内的内容
+                element.replace_with(BeautifulSoup(" ".join(element.split()), 'html.parser'))
+        return soup
     @classmethod
     def soup2html(cls, soup):
         return soup.prettify()
@@ -55,75 +62,104 @@ class SoupLib():
                     tag.attrs.clear()  # 清除现有属性
                     tag.attrs.update(original_attributes)
     @classmethod
-    def walk(cls, soup, func=None,size=200,level=0,blocks=[]):
+    def walk(cls, soup, func=None,size=200,level=0,blocks=[],ignore_tags=["script","style"]):
         contents = soup.contents
         length = 0
-        nodes={}
+        nodes = {}
         for idx,node in enumerate(contents):
+            if node.name in ignore_tags:
+                continue
             length += len(str(node))
-            #print("level=",level,"length=",length,"node=",len(str(node)),str(node)[:50],"...",str(node)[-50:])
+            #print("level=",level,"idx=",idx,"length=",length,"node=",len(str(node)),str(node)[:50],"...")
             if length < size:
-                hash = HashLib.md5(str(node))[:6]
+                hash = HashLib.md5(str(time.time()))[:6]
                 nodes[hash]=node
                 continue
             length = 0
             if nodes:
-                blocks.append(nodes)
-                # for key in nodes:
-                #     cls.replace_block(nodes[key],BeautifulSoup(f"<R t={key}></R>", 'html.parser'))
-                s=""
+                #print("level=",level,f"replace with block {len(blocks)}")
+                nodes_html=""
                 for key in nodes:
-                    s += str(nodes[key])
-                hash = HashLib.md5(s)[:6]    
-                cls.replace_block(list(nodes.values()),BeautifulSoup(f"<R t={hash}></R>", 'html.parser'))
+                    cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
+                    nodes_html += f"<div t={key}>{nodes[key]}</div>"
+                blocks.append(nodes_html)
             nodes={}
             if len(str(node)) < size:
-                hash = HashLib.md5(str(node))[:6]
+                hash = HashLib.md5(str(time.time()))[:6]
                 nodes[hash]=node
+                length += len(str(node))
                 continue
             else:
                 if isinstance(node, Tag): 
-                    level+=1
-                    cls.walk(node, func=func,size=size,level=level,blocks=blocks)
+                    cls.walk(node, func=func,size=size,level=level+1,blocks=blocks)
                 else:
-                    func & func(node)
+                    func and  func(node)
         if nodes:
-            blocks.append(nodes)
-            # for key in nodes:
-            #     cls.replace_block(nodes[key],BeautifulSoup(f"<R t={key}></R>", 'html.parser'))
-            s=""
+            #print("level=",level,f"replace with block {len(blocks)}")
+            nodes_html=""
             for key in nodes:
-                s += str(nodes[key])
-            hash = HashLib.md5(s)[:6]    
-            cls.replace_block(list(nodes.values()),BeautifulSoup(f"<R t={hash}></R>", 'html.parser'))
+                cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
+                nodes_html += f"<div t={key}>{nodes[key]}</div>"
+            blocks.append(nodes_html)
     @classmethod
     def replace_block(cls, source_block, target_block):
-        """将原始文本块(或连续的多个并列的文本快)替换为更新后的文本块."""
-        if type(source_block)!=list:
-            source_block = [source_block]
-        parent = source_block[0].parent
-        if parent:
-            index = parent.index(source_block[0])
-            parent.insert(index, target_block)
-            for block in source_block:
-                block.extract()
+        source_block.replace_with(target_block)
+    @classmethod
+    def unwalk(cls,soup,blocks):
+        for block in blocks:
+            target_block = cls.html2soup(block)
+            tnodes = target_block.find_all(lambda tag:tag.has_attr("t"))
+            for target_node in tnodes:
+                t = target_node.attrs.get("t")
+                source_node = soup.find(attrs={"t":t})
+                #print(t,source_node,len(target_node.contents))
+                source_node.replace_with(target_node.contents[0]) 
+
 if __name__ == "__main__":
-    html =  FileLib.readFile("test.html")
+    html = requests.get("https://global.alipay.com/docs/").text
+    html1 =  FileLib.readFile("test.html")
+    html2 = """
+<body>
+  <div>
+    hello world!!
+    厦门
+    漳州
+    泉州
+    <h1> 对话 <em> 重点 </em>   </h1>
+
+    
+    <p> let's go to home </p>
+    <p> ok, that is fine </p>
+  </div>
+  <div>
+    <h1> 其他测试 </h1>
+    <div> 
+    </div>
+    <div> <p> I am a student!</p></div>
+  </div>
+  <script>
+    var a = 1;
+    var b = 2;
+
+  </script>
+</body>
+"""
     soup = SoupLib.html2soup(html)
     hash_dict = SoupLib.hash_attribute(soup)
     blocks = []
-    def do(node):
-        print(len(str(node)),str(node))
-    SoupLib.walk(soup, func = lambda node: do(node),size=800,blocks=blocks)
-    # blocks=[]
-    # soup1,hash_dict = SoupLib.hash_attribute(soup)
-    # for source_block in soup1.contents:
-    #     target_block = BeautifulSoup(str(source_block), 'html.parser').contents[0]
-    #     target_block.attrs['ok'] = 1
-    #     SoupLib.replace_block(source_block,target_block)
-    # print(soup1)
-    print(soup)
-    
+    SoupLib.walk(soup, size=800,blocks=blocks)
+    print("="*20)
+    #print(soup)
+    FileLib.writeFile("soup1.html",SoupLib.soup2html(soup))
     print("="*50)
     for idx,block in enumerate(blocks):
-        print(idx,block,end="\n\n")
+        print(idx,block)
+
+    print("="*80)
+    SoupLib.unwalk(soup,blocks)
+    SoupLib.unhash_attribute(soup,hash_dict)
+    #print(soup.prettify())
+    FileLib.writeFile("soup2.html",SoupLib.soup2html(soup))
+
+
+

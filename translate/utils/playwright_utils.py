@@ -5,8 +5,8 @@ import time
 from translate.utils import *
 from logger import logger
 import shlex
-from langchain_utils import *
-from soup_utils import SoupLib
+from utils.langchain_utils import *
+from utils.soup_utils import SoupLib
 from tqdm import tqdm
 
 class PlaywrightLib:
