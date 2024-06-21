@@ -116,8 +116,8 @@ class SoupLib():
                 source_node.replace_with(target_node.contents[0]) 
 
 if __name__ == "__main__":
-    html = requests.get("https://global.alipay.com/docs/").text
-    html1 =  FileLib.readFile("test.html")
+    html0 = requests.get("https://global.alipay.com/docs/").text
+    html =  FileLib.readFile("pw.html")
     html2 = """
 <body>
   <div>

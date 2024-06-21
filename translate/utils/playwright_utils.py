@@ -2,7 +2,6 @@ import asyncio
 from pydoc import writedoc
 from playwright.async_api import async_playwright, Browser, Page
 import time
-from translate.utils import *
 from logger import logger
 import shlex
 from utils.langchain_utils import *

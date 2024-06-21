@@ -17,12 +17,14 @@ import random
 
 from logger import logger
 import logging
+import asyncio
 
 from utils.file_utils import FileLib
 from utils.crypto_utils import HashLib
 from utils.langchain_utils import *
 from utils.soup_utils import SoupLib
 from utils.config_utils import Config
+from utils.playwright_utils import PlaywrightLib
 from image_translater import ImageTranslater
 
 class MarkdonwAction(Enum):
@@ -454,7 +456,7 @@ class HTMLTranslater(Translater):
         if imageAction and self.imageTranslater:
             self.imageTranslater.save()       
 
-if __name__ == "__main__":
+async def main():
     logger.setLevel(logging.INFO)
     url = None
     if len(sys.argv) > 1:
@@ -504,12 +506,33 @@ if __name__ == "__main__":
     # #translater.clearErrorMsg()
     # translater.start()
     
-    ######  测试翻译html片段
-    print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
-    html = FileLib.readFile("part_13.html")
-    print(2,html)
-    res = translater.html_chain.invoke({"input":html})
-    print(res.content)
+    # ######  测试翻译html片段
+    # print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
+    # html = FileLib.readFile("part_13.html")
+    # print(2,html)
+    # res = translater.html_chain.invoke({"input":html})
+    # print(res.content)
+
+    ##### playwright
+    # async with PlaywrightLib(headless=False) as pw:
+    #     await pw.goto(url,start_log="开始加载页面",end_log="页面加载完成",wait_until="domcontentloaded")
+    #     pw.wait(3000,start_log="等待3秒",end_log="等待结束")
+    #     #await pw.click("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]",start_log="点击Req Show all按钮")
+    #     await pw.click("//div[@id='Responseparameters']//button//span[contains(text(),'Show all')]",start_log="点击Res Show all按钮")
+    #     pw.wait(3000,start_log="等待3秒",end_log="等待结束")
+    #     #await pw.wait_for_selector("//div[@id='Requestparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Req Hide all按钮")
+    #     await pw.wait_for_selector("//div[@id='Responseparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Res Hide all按钮")
+    #     html = await pw.get_html()
+    #     FileLib.writeFile("pw.html",html[0])
+    #     pw.wait(10000,start_log="等待10秒",end_log="等待结束")
+    #     await pw.close()
+    html = FileLib.readFile("pw.html")
+    soup = SoupLib.html2soup(html)
+    hash_dict = SoupLib.hash_attribute(soup)
+    blocks = []
+    SoupLib.walk(soup, size=2000,blocks=blocks)
+    print(len(blocks))
+    print(list(map(lambda x:len(x),blocks)))
     '''
     表格
     //div[@data-lake-card="table"]
@@ -523,5 +546,20 @@ if __name__ == "__main__":
     //aside
     主内容
     //article
+
+    # 要翻译的部分
+    //article[@class="ant-typography"]//section
+    # sandboxSwitch span按钮
+    //div[contains(@class,"sandboxSwitch")]//span[text()="Sample Codes"]
+    //div[contains(@class,"sandboxSwitch")]//span[text()="Run in Sandbox"]
+    #脚本文本
+    //div[@id="ace-editor"]//div[@class="ace_content"]//div[contains(@class,"ace_text-layer")]
+    #定位id
+    //*[@id="3RxeL"]
+    //*[@id="d8Mc5"]
+
     '''
     
+
+if __name__ == "__main__":
+   asyncio.run(main()) 
