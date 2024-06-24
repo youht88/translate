@@ -77,7 +77,9 @@ class PlaywrightLib:
         else:
             await self.page.set_content(innerHTML)
         bool(end_log) and logger.info(end_log)
-    
+    async def selector_exists(self, selector) -> bool:
+        element = self.page.locator(selector)
+        return await element.count() > 0
     async def wait_for_selector(self, selector, timeout=5000,start_log="",end_log=""):
         bool(start_log) and logger.info(start_log)
         await self.page.wait_for_selector(selector, timeout=timeout)

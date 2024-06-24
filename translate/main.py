@@ -26,7 +26,7 @@ from utils.soup_utils import SoupLib
 from utils.config_utils import Config
 from utils.playwright_utils import PlaywrightLib
 from image_translater import ImageTranslater
-
+from lxml import etree
 class MarkdonwAction(Enum):
     CRAWLER = 1
     JINA = 2
@@ -355,12 +355,12 @@ class HTMLTranslater(Translater):
             other.string = '...'
             parent.append(other)
         print(parent,'\n','*'*20,'\n',self.soup)
-    def translate_html_text(self,chain,text):
+    def translate_html_text(self,chain,text,size=1000):
         soup = SoupLib.html2soup(text)
         hash_dict = SoupLib.hash_attribute(soup)
         blocks = []
         newBlocks = []
-        SoupLib.walk(soup, size=1000,blocks=blocks)
+        SoupLib.walk(soup, size=size,blocks=blocks)
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
                 FileLib.writeFile(f"part_{index}.html",block)
@@ -406,7 +406,7 @@ class HTMLTranslater(Translater):
         self.writeOrigin(self.html)
         self.writeTranslated(translated)
         self.writeDictionary() 
-    def start(self, imageAction:ImageAction|None=None):
+    def start(self, imageAction:ImageAction|None=None,size=1500):
         total = len(self.url)
         logger.info(f"begin on {total} urls\n")
         startTime = time.time()
@@ -441,7 +441,7 @@ class HTMLTranslater(Translater):
                 resultHtml = None
                 if not os.path.exists(f"{id}_cn.html"):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
-                    resultHtml = self.translate_html_text(self.html_chain,originHtml)
+                    resultHtml = self.translate_html_text(self.html_chain,originHtml,size=size)
                     FileLib.writeFile(f"{id}_cn.html",resultHtml)
                 else:
                     resultHtml = FileLib.readFile(f"{id}_cn.html")
@@ -502,9 +502,9 @@ async def main():
     # #translater.start()
 
     # ###### html模式
-    translater = HTMLTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
+    #translater = HTMLTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
     # #translater.clearErrorMsg()
-    # translater.start()
+    #translater.start(size=1500)
     
     # ######  测试翻译html片段
     # print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
@@ -514,37 +514,61 @@ async def main():
     # print(res.content)
 
     ##### playwright
-    # async with PlaywrightLib(headless=False) as pw:
-    #     await pw.goto(url,start_log="开始加载页面",end_log="页面加载完成",wait_until="domcontentloaded")
-    #     pw.wait(3000,start_log="等待3秒",end_log="等待结束")
-    #     #await pw.click("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]",start_log="点击Req Show all按钮")
-    #     await pw.click("//div[@id='Responseparameters']//button//span[contains(text(),'Show all')]",start_log="点击Res Show all按钮")
-    #     pw.wait(3000,start_log="等待3秒",end_log="等待结束")
-    #     #await pw.wait_for_selector("//div[@id='Requestparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Req Hide all按钮")
-    #     await pw.wait_for_selector("//div[@id='Responseparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Res Hide all按钮")
-    #     html = await pw.get_html()
-    #     FileLib.writeFile("pw.html",html[0])
-    #     pw.wait(10000,start_log="等待10秒",end_log="等待结束")
-    #     await pw.close()
+    '''
+    async with PlaywrightLib(headless=False) as pw:
+        await pw.goto(url,start_log="开始加载页面",end_log="页面加载完成",wait_until="domcontentloaded")
+        pw.wait(3000,start_log="等待3秒",end_log="等待结束")
+        print(await pw.selector_exists('//section[contains(@class,"right")]'))
+        request_show = await pw.selector_exists("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]")
+        if request_show:
+            await pw.click("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]",start_log="点击Req Show all按钮")
+        response_show = await pw.selector_exists("//div[@id='Responseparameters']//button//span[contains(text(),'Show all')]")
+        if response_show:
+            await pw.click("//div[@id='Responseparameters']//button//span[contains(text(),'Show all')]",start_log="点击Res Show all按钮")
+        pw.wait(3000,start_log="等待3秒",end_log="等待结束")
+        if request_show:
+            await pw.wait_for_selector("//div[@id='Requestparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Req Hide all按钮")
+        if response_show:
+            await pw.wait_for_selector("//div[@id='Responseparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Res Hide all按钮")
+        html = await pw.get_html()
+        FileLib.writeFile("pw.html",html[0])
+        pw.wait(10000,start_log="等待10秒",end_log="等待结束")
+    
+        await pw.close()
+        html = [FileLib.readFile("pw.html")]
+        soup = SoupLib.html2soup(html[0])
+        hash_dict = SoupLib.hash_attribute(soup)
+        blocks = []
+        SoupLib.walk(soup, size=2000,blocks=blocks)
+        print(len(blocks))
+        for idx,item in enumerate(blocks):
+            temp = SoupLib.html2soup(item)
+            if temp.text:
+                print(idx,len(item))
+            #FileLib.writeFile(f"pw_{idx}.html",item)
+    '''
     html = FileLib.readFile("pw.html")
     soup = SoupLib.html2soup(html)
+    soup = SoupLib.add_tag(soup,"ignore",['//section[contains(@class,"right")]'])
+    #soup2 = SoupLib.remove_tag(soup,"ignore")
     hash_dict = SoupLib.hash_attribute(soup)
     blocks = []
-    SoupLib.walk(soup, size=2000,blocks=blocks)
-    print(len(blocks))
-    print(list(map(lambda x:len(x),blocks)))
+    SoupLib.walk(soup, size=10000,blocks=blocks)
+    # print("*"*20,soup,"*"*20)
+    for idx,block in enumerate(blocks):
+        FileLib.writeFile(f"pw_{idx}",block)
     '''
-    表格
+    #表格
     //div[@data-lake-card="table"]
-    代码段
+    #代码段
     //div[@data-lake-card="codeblock"]
-    图片
+    #图片
     //span[@data-lake-card="image"]
-    右侧侧边导航
+    #右侧侧边导航
     //nav
-    左侧菜单导航
+    #左侧菜单导航
     //aside
-    主内容
+    #主内容
     //article
 
     # 要翻译的部分

@@ -6,7 +6,7 @@ from utils.crypto_utils import HashLib
 from utils.file_utils import *    
 import time
 import requests
-
+from lxml import etree
 class SoupLib():
     @classmethod
     def html2soup(cls, html):
@@ -25,6 +25,48 @@ class SoupLib():
     @classmethod
     def soup2html(cls, soup):
         return soup.prettify()
+    @classmethod
+    def add_tag(cls, soup, tag_name, selectors):
+        print(time.time())
+        #为符合selectors(xpath)的元素(第一个)套上tag_name
+        #如果已经有tag_name则不会重复嵌套tag_name
+        tree = etree.HTML(str(soup))
+        for selector in selectors:
+            elems = tree.xpath(selector) 
+            print(selector,elems)
+            if elems:
+                elem = elems[0]
+                tag_element = etree.Element(tag_name)
+                parent = elem.getparent()
+                if parent and parent.tag!=tag_name:
+                    parent.replace(elem, tag_element)
+                    tag_element.append(elem)
+                    # parent = elem.getparent()
+                    # index = parent.index(elem)
+                    # parent.insert(index, tag_element)
+        html = etree.tostring(tree).decode()
+        print(time.time())
+        
+        return cls.html2soup(html)            
+    @classmethod
+    def remove_tag(cls, soup, tag_name):
+        #去除tag_name
+        tree = etree.fromstring(str(soup))
+        elems = tree.xpath(f"//{tag_name}") 
+        for tag_element in elems:
+            # 获取 <ignore> 标签的父元素
+            parent = tag_element.getparent()
+            # 获取 <ignore> 标签的索引
+            index = parent.index(tag_element)
+            # 将 <ignore> 标签的所有子元素移动到其父元素的相同索引位置
+            for child in tag_element:
+                tag_element.remove(child)
+                parent.insert(index, child)
+                index += 1
+            # 移除 <ignore> 标签
+            parent.remove(tag_element)
+        html = etree.tostring(tree).decode()
+        return cls.html2soup(html)  
     @classmethod
     def hash_attribute(cls, soup, key = 'hash',length=6):
         # 将soup中的所有标签的属性转化为hash，返回attribute_map且原soup已经变更
@@ -62,45 +104,52 @@ class SoupLib():
                     tag.attrs.clear()  # 清除现有属性
                     tag.attrs.update(original_attributes)
     @classmethod
-    def walk(cls, soup, func=None,size=200,level=0,blocks=[],ignore_tags=["script","style"]):
+    def walk(cls, soup, func=None,size=200,level=0,blocks=[],ignore_tags=["script","style","ignore"]):
         contents = soup.contents
         length = 0
         nodes = {}
         for idx,node in enumerate(contents):
+            is_ignored = False
             if node.name in ignore_tags:
-                continue
-            length += len(str(node))
-            #print("level=",level,"idx=",idx,"length=",length,"node=",len(str(node)),str(node)[:50],"...")
-            if length < size:
-                hash = HashLib.md5(str(time.time()))[:6]
-                nodes[hash]=node
-                continue
+                is_ignored = True
+            print("ignore=",is_ignored,"level=",level,"idx=",idx,"length=",length,"node=",len(str(node)),str(node)[:50],"...")        
+            if not is_ignored:
+                length += len(str(node))
+                if length < size:
+                    hash = HashLib.md5(str(time.time()))[:6]
+                    nodes[hash]=node
+                    continue
             length = 0
             if nodes:
                 #print("level=",level,f"replace with block {len(blocks)}")
                 nodes_html=""
                 for key in nodes:
+                    print(key,nodes[key])
                     cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
                     nodes_html += f"<div t={key}>{nodes[key]}</div>"
                 blocks.append(nodes_html)
-            nodes={}
-            if len(str(node)) < size:
-                hash = HashLib.md5(str(time.time()))[:6]
-                nodes[hash]=node
-                length += len(str(node))
-                continue
-            else:
-                if isinstance(node, Tag): 
-                    cls.walk(node, func=func,size=size,level=level+1,blocks=blocks)
+                nodes = {}
+
+            if not is_ignored:
+                if len(str(node)) < size:
+                    hash = HashLib.md5(str(time.time()))[:6]
+                    nodes[hash]=node
+                    length += len(str(node))
+                    continue
                 else:
-                    func and  func(node)
+                    if isinstance(node, Tag): 
+                        cls.walk(node, func=func,size=size,level=level+1,blocks=blocks)
+                    else:
+                        func and  func(node)
         if nodes:
-            #print("level=",level,f"replace with block {len(blocks)}")
-            nodes_html=""
-            for key in nodes:
-                cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
-                nodes_html += f"<div t={key}>{nodes[key]}</div>"
-            blocks.append(nodes_html)
+                #print("level=",level,f"replace with block {len(blocks)}")
+                nodes_html=""
+                for key in nodes:
+                    print(key,nodes[key])
+                    cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
+                    nodes_html += f"<div t={key}>{nodes[key]}</div>"
+                blocks.append(nodes_html)
+                nodes = {}
     @classmethod
     def replace_block(cls, source_block, target_block):
         source_block.replace_with(target_block)
