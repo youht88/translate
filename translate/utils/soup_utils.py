@@ -27,13 +27,12 @@ class SoupLib():
         return soup.prettify()
     @classmethod
     def add_tag(cls, soup, tag_name, selectors):
-        print(time.time())
         #为符合selectors(xpath)的元素(第一个)套上tag_name
         #如果已经有tag_name则不会重复嵌套tag_name
+        # 返回新的soup
         tree = etree.HTML(str(soup))
         for selector in selectors:
             elems = tree.xpath(selector) 
-            print(selector,elems)
             if elems:
                 elem = elems[0]
                 tag_element = etree.Element(tag_name)
@@ -45,12 +44,13 @@ class SoupLib():
                     # index = parent.index(elem)
                     # parent.insert(index, tag_element)
         html = etree.tostring(tree).decode()
-        print(time.time())
         
         return cls.html2soup(html)            
     @classmethod
     def remove_tag(cls, soup, tag_name):
         #去除tag_name
+        #返回新的soup
+
         tree = etree.fromstring(str(soup))
         elems = tree.xpath(f"//{tag_name}") 
         for tag_element in elems:
@@ -104,6 +104,64 @@ class SoupLib():
                     tag.attrs.clear()  # 清除现有属性
                     tag.attrs.update(original_attributes)
     @classmethod
+    def compare_soup_structure(cls, soup1, soup2):
+        """
+        比较两个 BeautifulSoup 对象的结构是否完全一致，忽略文本内容。
+
+        Args:
+            soup1: 第一个 BeautifulSoup 对象。
+            soup2: 第二个 BeautifulSoup 对象。
+
+        Returns:
+            bool: 如果结构完全一致则返回 True，否则返回 False。
+        """
+
+        def compare_tags(tag1, tag2):
+            """
+            递归比较两个标签及其子元素的结构，忽略文本内容。
+
+            Args:
+                tag1: 第一个标签。
+                tag2: 第二个标签。
+
+            Returns:
+                bool: 如果结构完全一致则返回 True，否则返回 False。
+            """
+            if tag1.name != tag2.name:
+                return False
+            if tag1.attrs != tag2.attrs:
+                return False
+            if len(tag1.contents) != len(tag2.contents):
+                return False
+            for i in range(len(tag1.contents)):
+                child1 = tag1.contents[i]
+                child2 = tag2.contents[i]
+                if isinstance(child1, Tag) and isinstance(child2, Tag):
+                    if not compare_tags(child1, child2):
+                        return False
+            return True
+
+        return compare_tags(soup1, soup2)
+
+    @classmethod
+    def replace_text_with_dictionary(cls, soup, dictionary={}):
+        for element in soup.find_all(text=True):
+            if element.parent.name in ['[document]', 'html', 'body']:
+                continue  # 跳过顶层元素的文本节点
+            if element.strip() and not element.string:
+                continue  # 跳过包含子元素的文本节点
+
+            # 尝试替换文本
+            new_text = dictionary.get(element.strip())
+            if new_text:
+                element.replace_with(new_text)
+    @classmethod
+    def find_all_text(cls, soup,separator='_||_')->list:
+        texts = soup.get_text(separator=separator, strip=True)
+        if not texts:
+            return []
+        return texts.split(separator)
+    @classmethod
     def walk(cls, soup, func=None,size=200,level=0,blocks=[],ignore_tags=["script","style","ignore"]):
         contents = soup.contents
         length = 0
@@ -112,7 +170,7 @@ class SoupLib():
             is_ignored = False
             if node.name in ignore_tags:
                 is_ignored = True
-            print("ignore=",is_ignored,"level=",level,"idx=",idx,"length=",length,"node=",len(str(node)),str(node)[:50],"...")        
+            #print("ignore=",is_ignored,"node.name=",node.name,"level=",level,"idx=",idx,"length=",length,"node=",len(str(node)),str(node)[:50],"...")        
             if not is_ignored:
                 length += len(str(node))
                 if length < size:
@@ -124,7 +182,6 @@ class SoupLib():
                 #print("level=",level,f"replace with block {len(blocks)}")
                 nodes_html=""
                 for key in nodes:
-                    print(key,nodes[key])
                     cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
                     nodes_html += f"<div t={key}>{nodes[key]}</div>"
                 blocks.append(nodes_html)
@@ -138,14 +195,13 @@ class SoupLib():
                     continue
                 else:
                     if isinstance(node, Tag): 
-                        cls.walk(node, func=func,size=size,level=level+1,blocks=blocks)
+                        cls.walk(node, func=func,size=size,level=level+1,blocks=blocks,ignore_tags=ignore_tags)
                     else:
                         func and  func(node)
         if nodes:
                 #print("level=",level,f"replace with block {len(blocks)}")
                 nodes_html=""
                 for key in nodes:
-                    print(key,nodes[key])
                     cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
                     nodes_html += f"<div t={key}>{nodes[key]}</div>"
                 blocks.append(nodes_html)
@@ -155,14 +211,14 @@ class SoupLib():
         source_block.replace_with(target_block)
     @classmethod
     def unwalk(cls,soup,blocks):
-        for block in blocks:
+        for idx, block in enumerate(blocks):
             target_block = cls.html2soup(block)
             tnodes = target_block.find_all(lambda tag:tag.has_attr("t"))
             for target_node in tnodes:
                 t = target_node.attrs.get("t")
                 source_node = soup.find(attrs={"t":t})
-                #print(t,source_node,len(target_node.contents))
-                source_node.replace_with(target_node.contents[0]) 
+                if source_node:
+                    source_node.replace_with(target_node.contents[0]) 
 
 if __name__ == "__main__":
     html0 = requests.get("https://global.alipay.com/docs/").text

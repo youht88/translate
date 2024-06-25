@@ -26,7 +26,7 @@ from utils.soup_utils import SoupLib
 from utils.config_utils import Config
 from utils.playwright_utils import PlaywrightLib
 from image_translater import ImageTranslater
-from lxml import etree
+
 class MarkdonwAction(Enum):
     CRAWLER = 1
     JINA = 2
@@ -43,6 +43,7 @@ class Translater():
         self.taskFilename = taskFilename
         self.imageTranslater = None
         self.config = Config()
+        FileLib.mkdir("temp")
         if type(url)==list:
             self.url = url
             self.task = FileLib.loadJson(self.taskFilename)
@@ -335,84 +336,93 @@ class MarkdownTranslater(Translater):
     def fix_markdown_table(self,markdown):
         pass                      
 class HTMLTranslater(Translater):
-    def snipHtml(self,tagObject,beforeNum=2,afterNum=2):
-        print(str(tagObject.parent))
-        parent = BeautifulSoup(str(tagObject.parent), "html.parser")
-        previousAll = list(filter(lambda x:x!='\n',tagObject.previous_siblings))
-        nextAll = list(filter(lambda x:x!='\n',tagObject.next_siblings))
-        parent.clear()
-        for i in range(beforeNum if beforeNum<len(previousAll) else len(previousAll)):
-            parent.insert(0,previousAll[i])
-        if beforeNum < len(previousAll):
-            other = self.soup.new_tag('p')
-            other.string = '...'
-            parent.insert(0,other)
-        parent.append(tagObject) 
-        for i in range(afterNum if afterNum<len(nextAll) else len(nextAll)):
-            parent.append(nextAll[i])
-        if afterNum < len(nextAll):
-            other = self.soup.new_tag('p')
-            other.string = '...'
-            parent.append(other)
-        print(parent,'\n','*'*20,'\n',self.soup)
-    def translate_html_text(self,chain,text,size=1000):
-        soup = SoupLib.html2soup(text)
-        hash_dict = SoupLib.hash_attribute(soup)
-        blocks = []
-        newBlocks = []
-        SoupLib.walk(soup, size=size,blocks=blocks)
+    def update_dictionary(self, origin_soup, target_soup):
+        if SoupLib.compare_soup_structure(origin_soup,target_soup):
+            origin_texts = SoupLib.find_all_text(origin_soup)
+            target_texts = SoupLib.find_all_text(target_soup)
+            if len(origin_texts) == len(target_texts):
+                soup_dict = dict(zip(origin_texts,target_texts))
+                self.dictionary = {**soup_dict, **self.dictionary}
+    def translate_html_text(self,url_id,chain,text,size=1000):
+        if FileLib.existsFile(f"temp/{url_id}/soup.html"):
+            html = FileLib.readFile(f"temp/{url_id}/soup.html")
+            soup = SoupLib.html2soup(html)
+            hash_dict = FileLib.loadJson(f"temp/{url_id}/hash_dict.json")
+            blocks = FileLib.readFiles(f"temp/{url_id}","part_[0-9]*.html")
+            newBlocks = []       
+        else:
+            soup = SoupLib.html2soup(text)
+            soup = SoupLib.add_tag(soup,"ignore",['//section[contains(@class,"right")]','//aside'])
+            hash_dict = SoupLib.hash_attribute(soup)
+            blocks = []
+            newBlocks = []
+            SoupLib.walk(soup, size=size,blocks=blocks,ignore_tags=["script", "style", "ignore","svg"])
+            FileLib.writeFile(f"temp/{url_id}/soup.html",SoupLib.soup2html(soup))
+            FileLib.dumpJson(f"temp/{url_id}/hash_dict.json",hash_dict)
+            for idx,block in enumerate(blocks):
+                FileLib.writeFile(f"temp/{url_id}/part_{str(idx).zfill(3)}.html",block)
+                
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
-                FileLib.writeFile(f"part_{index}.html",block)
-                try:
-                    if self.dictionary.get(block):
-                        return self.dictionary[block]
-                    result = chain.invoke(
-                        {
-                            "input": block,
-                        }
-                    )
-                    content = result.content
-                    self.dictionary[text]=content
-                    FileLib.writeFile(f"part_{index}_cn.html",content)
+                if FileLib.existsFile(f"temp/{url_id}/part_{str(index).zfill(3)}_cn.html"):
+                    content = FileLib.readFile(f"temp/{url_id}/part_{str(index).zfill(3)}_cn.html")
                     newBlocks.append(content)
                     pbar.update(1)
-                except Exception as e:
-                    print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
-                    raise e
+                else:
+                    try:
+                        soup_block = SoupLib.html2soup(block)
+                        if SoupLib.find_all_text(soup_block):
+                            SoupLib.replace_text_with_dictionary(soup_block,self.dictionary)
+                            block_replaced = SoupLib.soup2html(soup_block)
+                            result = chain.invoke(
+                                {
+                                    "input": block_replaced,
+                                }
+                            )
+                            content = result.content
+                            self.update_dictionary(soup_block,SoupLib.html2soup(content))
+                            FileLib.writeFile(f"temp/{url_id}/part_{str(index).zfill(3)}_cn.html",content)
+                            newBlocks.append(content)
+                        else:
+                            newBlocks.append(block)
+                        pbar.update(1)
+                    except Exception as e:
+                        print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                        #raise e
         SoupLib.unwalk(soup,newBlocks)
         SoupLib.unhash_attribute(soup,hash_dict)
+        soup = SoupLib.remove_tag(soup,"ignore")
         resultHtml = soup.prettify("utf-8")
         return resultHtml.decode("utf-8")
-    def start_old(self):
-        # 翻译 HTML 中的文本，指定目标语言为中文
-        for element in self.soup.find_all(text=True):
-            if element.parent.name not in ["script", "style"]:
-                tagSet = ("code","table")
-                tagAction = "ignore" # "must"
-                parentTag = map(lambda x:x.name,element.parents) # 跳过 script 和 style 标签内的文本
-                if tagAction=="must" and (not set(tagSet).intersection(parentTag)):
-                    continue
-                if tagAction=="ignore" and set(tagSet).intersection(parentTag):
-                    continue
-                original_text = element.string
-                translated_text = original_text
-                if original_text!="\n":
-                    translated_text = self.translate_text(original_text)
-                    print(f"A:{repr(original_text)}\nB:{repr(translated_text)}\nC:{element}\nD:<{element.parent.name}>\nE:{repr(element.parent)}>\n{'*'*20}\n")
-                    element.replace_with(translated_text)
-        # 生成翻译后的 HTML
-        translated = self.soup.prettify("utf-8")
-        self.writeOrigin(self.html)
-        self.writeTranslated(translated)
-        self.writeDictionary() 
-    def start(self, imageAction:ImageAction|None=None,size=1500):
+    async def get_html(self, url):
+        async with PlaywrightLib(headless=False) as pw:
+            await pw.goto(url,start_log="开始加载页面",end_log="页面加载完成",wait_until="domcontentloaded",timeout=180000)
+            pw.wait(3000,start_log="等待3秒",end_log="等待结束")
+            print(await pw.selector_exists('//section[contains(@class,"right")]'))
+            request_show = await pw.selector_exists("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]")
+            if request_show:
+                await pw.click("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]",start_log="点击Req Show all按钮")
+            response_show = await pw.selector_exists("//div[@id='Responseparameters']//button//span[contains(text(),'Show all')]")
+            if response_show:
+                await pw.click("//div[@id='Responseparameters']//button//span[contains(text(),'Show all')]",start_log="点击Res Show all按钮")
+            pw.wait(3000,start_log="等待3秒",end_log="等待结束")
+            if request_show:
+                await pw.wait_for_selector("//div[@id='Requestparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Req Hide all按钮")
+            if response_show:
+                await pw.wait_for_selector("//div[@id='Responseparameters']//button//span[contains(text(),'Hide all')]",start_log="定位Res Hide all按钮")
+            html = await pw.get_html()
+            #pw.wait(10000,start_log="等待10秒",end_log="等待结束")        
+            await pw.close()
+            return html[0]
+
+    async def start(self, imageAction:ImageAction|None=None,size=1500,only_download=False):
         total = len(self.url)
         logger.info(f"begin on {total} urls\n")
         startTime = time.time()
         for index,url in enumerate(self.url):
             try:
                 id = HashLib.md5(url)
+                FileLib.mkdir(f"temp/{id}")
                 taskItem = self.task.get(id)
                 if not taskItem:
                     taskItem = {
@@ -426,8 +436,7 @@ class HTMLTranslater(Translater):
                     continue
                 if not os.path.exists(f"{id}.html"):
                     logger.info(f"提取html url= {url},id={id} ...")
-                    response = requests.get(url)
-                    originHtml = response.text
+                    originHtml = await self.get_html(url)
                     metadata = None
                     if originHtml:
                         FileLib.writeFile(f"{id}.html",originHtml)
@@ -439,18 +448,20 @@ class HTMLTranslater(Translater):
                 else:
                     originHtml = FileLib.readFile(f"{id}.html")
                 resultHtml = None
-                if not os.path.exists(f"{id}_cn.html"):
-                    logger.info(f"开始翻译 url= {url},id={id} ...")
-                    resultHtml = self.translate_html_text(self.html_chain,originHtml,size=size)
-                    FileLib.writeFile(f"{id}_cn.html",resultHtml)
-                else:
-                    resultHtml = FileLib.readFile(f"{id}_cn.html")
+                if not only_download:
+                    if not os.path.exists(f"{id}_cn.html"):
+                        logger.info(f"开始翻译 url= {url},id={id} ...")
+                        resultHtml = self.translate_html_text(id,self.html_chain,originHtml,size=size)
+                        FileLib.writeFile(f"{id}_cn.html",resultHtml)
+                    else:
+                        resultHtml = FileLib.readFile(f"{id}_cn.html")
+                
                 endTime = time.time() - startTime
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
                 logger.error(f"error on url={url},id={id},error={str(e)}")
-                raise e
+                #raise e
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)
         if imageAction and self.imageTranslater:
@@ -491,10 +502,39 @@ async def main():
         #url = "https://huggingface.co/davidkim205/Rhea-72b-v0.5/discussions"
         #url = "https://global.alipay.com/docs/ac/subscriptionpay_en/overview"
         url = "https://global.alipay.com/docs/ac/ams/api"
-    urls = ["https://global.alipay.com/docs/ac/subscriptionpay_en/overview",
-            "https://global.alipay.com/docs/ac/subscriptionpay_en/activation?pageVersion=9",
-            "https://global.alipay.com/docs/ac/subscriptionpay_en/cancel_refund",
-            "https://global.alipay.com/docs/ac/subscriptionpay_en/reconcile"]
+    urls = ["https://global.alipay.com/docs/ac/ams/authconsult",
+            "https://global.alipay.com/docs/ac/ams/notifyauth",
+            "https://global.alipay.com/docs/ac/ams/accesstokenapp",
+            "https://global.alipay.com/docs/ac/ams/authrevocation",
+            "https://global.alipay.com/docs/ac/ams/vaulting_session",
+            "https://global.alipay.com/docs/ac/ams/vault_method",
+            "https://global.alipay.com/docs/ac/ams/notify_vaulting",
+            "https://global.alipay.com/docs/ac/ams/inquire_vaulting",
+            "https://global.alipay.com/docs/ac/ams/consult",
+            "https://global.alipay.com/docs/ac/ams/payment_cashier",
+            "https://global.alipay.com/docs/ac/ams/session_cashier",
+            "https://global.alipay.com/docs/ac/ams/capture",
+            "https://global.alipay.com/docs/ac/ams/payment_agreement",
+            "https://global.alipay.com/docs/ac/ams/createpaymentsession_easypay",
+            "https://global.alipay.com/docs/ac/ams/paymentrn_online",
+            "https://global.alipay.com/docs/ac/ams/notify_capture",
+            "https://global.alipay.com/docs/ac/ams/paymentri_online",
+            "https://global.alipay.com/docs/ac/ams/paymentc_online",
+            "https://global.alipay.com/docs/ac/ams/create_sub",
+            "https://global.alipay.com/docs/ac/ams/notify_sub",
+            "https://global.alipay.com/docs/ac/ams/notify_subpayment",
+            "https://global.alipay.com/docs/ac/ams/change_sub",
+            "https://global.alipay.com/docs/ac/ams/cancel_sub",
+            "https://global.alipay.com/docs/ac/ams/accept",
+            "https://global.alipay.com/docs/ac/ams/supply_evidence",
+            "https://global.alipay.com/docs/ac/ams/download",
+            "https://global.alipay.com/docs/ac/ams/notify_dispute",
+            "https://global.alipay.com/docs/ac/ams/refund_online",
+            "https://global.alipay.com/docs/ac/ams/notify_refund",
+            "https://global.alipay.com/docs/ac/ams/ir_online",
+            "https://global.alipay.com/docs/ac/ams/declare",
+            "https://global.alipay.com/docs/ac/ams/inquirydeclare"
+            ]
     ###### markdown模式
     # translater = MarkdownTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
     # translater.clearErrorMsg()
@@ -502,9 +542,9 @@ async def main():
     # #translater.start()
 
     # ###### html模式
-    #translater = HTMLTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
-    # #translater.clearErrorMsg()
-    #translater.start(size=1500)
+    translater = HTMLTranslater(url=urls,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
+    #translater.clearErrorMsg()
+    await translater.start(size=2000)
     
     # ######  测试翻译html片段
     # print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
@@ -512,7 +552,8 @@ async def main():
     # print(2,html)
     # res = translater.html_chain.invoke({"input":html})
     # print(res.content)
-
+    #llm = ChatOpenAI(base_url="https://api.together.xyz/v1",api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",model="Qwen/Qwen1.5-72B-Chat")
+    #llm.invoke("hello")
     ##### playwright
     '''
     async with PlaywrightLib(headless=False) as pw:
@@ -547,16 +588,39 @@ async def main():
                 print(idx,len(item))
             #FileLib.writeFile(f"pw_{idx}.html",item)
     '''
-    html = FileLib.readFile("pw.html")
-    soup = SoupLib.html2soup(html)
-    soup = SoupLib.add_tag(soup,"ignore",['//section[contains(@class,"right")]'])
-    #soup2 = SoupLib.remove_tag(soup,"ignore")
-    hash_dict = SoupLib.hash_attribute(soup)
-    blocks = []
-    SoupLib.walk(soup, size=10000,blocks=blocks)
-    # print("*"*20,soup,"*"*20)
-    for idx,block in enumerate(blocks):
-        FileLib.writeFile(f"pw_{idx}",block)
+    # html = FileLib.readFile("pw.html")
+    # soup = SoupLib.html2soup(html)
+    # soup = SoupLib.add_tag(soup,"ignore",['//section[contains(@class,"right")]'])
+    # #soup2 = SoupLib.remove_tag(soup,"ignore")
+    # hash_dict = SoupLib.hash_attribute(soup)
+    # blocks = []
+    # SoupLib.walk(soup, size=2000,blocks=blocks,ignore_tags= ["script", "style", "ignore","svg"])
+    # #print("*"*20,soup,"*"*20)
+    # print(len(blocks))
+    # for idx,block in enumerate(blocks):
+    #     print(idx,len(block),len(SoupLib.find_all_text(SoupLib.html2soup(block))))
+    # print("*"*20,)
+    # idx = 16
+    # FileLib.writeFile(f"block{idx}.html",blocks[idx])
+    # print(SoupLib.html2soup(blocks[idx]).get_text(separator='||', strip=True))
+    # #content = translater.html_chain.invoke({"input":blocks[idx]}).content
+    # print("*"*20)
+    # #print(SoupLib.html2soup(content).get_text(separator='||', strip=True))
+    # for i,item in enumerate(SoupLib.find_all_text(SoupLib.html2soup(blocks[idx]))):
+    #     print(i,item)
+    # dictionary = {"Array":"列表","is":"是"}
+    # soup1 = SoupLib.html2soup(blocks[idx])
+    # #soup1.contents[0].attrs={"t":"abcdef"}
+    # soup2 = SoupLib.html2soup(blocks[idx])
+    # SoupLib.replace_text_with_dictionary(soup2,dictionary)
+    # print(soup1,"\n\n",soup2)
+    # print(SoupLib.compare_soup_structure(soup1,soup2))
+    # translater.update_dictionary(soup1,soup2)
+    # print(translater.dictionary)
+
+    #for idx,block in enumerate(blocks):
+    #    FileLib.writeFile(f"pw_{idx}.html",block)
+
     '''
     #表格
     //div[@data-lake-card="table"]

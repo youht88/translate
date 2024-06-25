@@ -1,5 +1,8 @@
 from logger import logger
 import json
+import os
+import shutil
+import glob
 
 class FileLib():
     @classmethod
@@ -33,3 +36,20 @@ class FileLib():
         with open(filename,mode,encoding="utf8") as f:
             text = f.read()
         return text
+    @classmethod
+    def existsFile(cls,filename):
+        return os.path.exists(filename)
+    @classmethod
+    def mkdir(cls,path):
+        os.makedirs(path,exist_ok=True)
+    @classmethod
+    def rmdir(cls,path):
+        shutil.rmtree(path,ignore_errors=True)
+    @classmethod
+    def readFiles(cls,dir,files_glob):
+        file_contents = []
+        file_names = glob.glob(os.path.join(dir, files_glob))
+        file_names.sort()
+        for filename in file_names:
+            file_contents.append(cls.readFile(filename))
+        return file_contents
