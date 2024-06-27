@@ -14,9 +14,9 @@ class SoupLib():
         p=r"```html\n(.*?)\n```"
         res = re.findall(p,html,re.DOTALL)
         if res:
-            soup =  BeautifulSoup(res[0], "html.parser")
-        else:
-            soup = BeautifulSoup(html, "html.parser")
+            html = res[0]
+        html = html.replace("<!DOCTYPE html>","")
+        soup = BeautifulSoup(html, "html.parser")
         # 将标签外部的多个空白字符替换成一个空格
         for element in soup.find_all(string=True):
             if element.parent.name not in ['script', 'style']:  # 忽略 <script> 和 <style> 标签内的内容
@@ -26,7 +26,42 @@ class SoupLib():
     def soup2html(cls, soup):
         return soup.prettify()
     @classmethod
-    def add_tag(cls, soup, tag_name, selectors):
+    def replace_block_with_tag(cls, soup, tag_name="keep", selectors=[]):
+        #为符合selectors(xpath)的元素(所有)替换位<tag_name hash=<hash of elem>></tag_name>
+        #如果已经有tag_name则不会重复嵌套tag_name
+        #将elem保存在dictionary字典中，key为hash of elem
+        # 返回新的soup 和 dictionary
+        dictionary = {}
+        tree = etree.HTML(str(soup))
+        for selector in selectors:
+            elems = tree.xpath(selector) 
+            for elem in elems:
+                hash = HashLib.md5(etree.tostring(elem).decode())[:6]
+                dictionary[hash] = etree.tostring(elem).decode()
+                tag_element = etree.Element(tag_name)
+                tag_element.attrib["hash"] = hash
+                parent = elem.getparent()
+                if parent and parent.tag!=tag_name:
+                    parent.replace(elem, tag_element)
+        html = etree.tostring(tree).decode()
+        return cls.html2soup(html),dictionary  
+
+    @classmethod
+    def restore_block_with_dict(cls, soup, restore_dict, tag_name="keep"):
+        tree = etree.fromstring(str(soup))
+        elems = tree.xpath(f"//{tag_name}") 
+        for elem in elems:
+            hash = elem.attrib["hash"]
+            origin = restore_dict.get(hash)
+            if origin:
+                origin_elem = etree.fromstring(origin)
+                parent = elem.getparent()
+                parent.replace(elem,origin_elem)
+        html = etree.tostring(tree).decode()
+        return cls.html2soup(html)  
+
+    @classmethod
+    def wrap_block_with_tag(cls, soup, tag_name, selectors):
         #为符合selectors(xpath)的元素(第一个)套上tag_name
         #如果已经有tag_name则不会重复嵌套tag_name
         # 返回新的soup
@@ -47,7 +82,7 @@ class SoupLib():
         
         return cls.html2soup(html)            
     @classmethod
-    def remove_tag(cls, soup, tag_name):
+    def unwrap_block_with_tag(cls, soup, tag_name):
         #去除tag_name
         #返回新的soup
 
@@ -142,7 +177,36 @@ class SoupLib():
             return True
 
         return compare_tags(soup1, soup2)
+    @classmethod
+    def mask_text_with_dictionary(cls, soup, dictionary={},key="__m__"):
+        for element in soup.find_all(text=True):
+            if element.parent.name in ['[document]', 'html', 'body']:
+                continue  # 跳过顶层元素的文本节点
+            if element.strip() and not element.string:
+                continue  # 跳过包含子元素的文本节点
 
+            # 尝试替换位mask：hash=******
+            text = element.strip()
+            hash = HashLib.md5(text)[:6]
+            new_text = dictionary.get(hash,{}).get("target_text")
+            if new_text:
+                element.replace_with(f"{key}={hash}")
+    @classmethod
+    def unmask_text_with_dictionary(cls, soup, dictionary={},key="__m__"):
+        for element in soup.find_all(text=True):
+            if element.parent.name in ['[document]', 'html', 'body']:
+                continue  # 跳过顶层元素的文本节点
+            if element.strip() and not element.string:
+                continue  # 跳过包含子元素的文本节点
+
+            
+            # 尝试替换文本
+            text = element.strip()
+            hashs = re.findall(f"{key}=(.{{6}})",text)
+            if hashs:
+                new_text = dictionary.get(hashs[0],{}).get("target_text")
+                if new_text:
+                    element.replace_with(new_text)
     @classmethod
     def replace_text_with_dictionary(cls, soup, dictionary={}):
         for element in soup.find_all(text=True):
@@ -161,6 +225,14 @@ class SoupLib():
         if not texts:
             return []
         return texts.split(separator)
+    @classmethod
+    def find_all_text_without_mask(cls, soup,separator='_||_',mask_key='__m__')->list:
+        texts = soup.get_text(separator=separator, strip=True)
+        if not texts:
+            return []
+        texts_list = [text for text in texts.split(separator) if not re.match(f"{mask_key}=(.{{6}})",text)]
+        return texts_list
+
     @classmethod
     def walk(cls, soup, func=None,size=200,level=0,blocks=[],ignore_tags=["script","style","ignore"]):
         contents = soup.contents

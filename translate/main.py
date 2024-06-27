@@ -242,7 +242,7 @@ class MarkdownTranslater(Translater):
                     newBlocks.append(content)
                     pbar.update(1)
                 except Exception as e:
-                    print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                    logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                     raise e
         return "\n\n".join(newBlocks)
     def start(self, imageAction:ImageAction|None=None):
@@ -261,7 +261,7 @@ class MarkdownTranslater(Translater):
                     }
                     self.task[id] = taskItem
                 if taskItem.get('errorMsg'):
-                    logger.error(f"skip on url={url},id={id} ,because it is error ")
+                    logger.info(f"skip on url={url},id={id} ,because it is error ")
                     continue
                 if not os.path.exists(f"{id}.md"):
                     logger.info(f"提取markdown url= {url},id={id} ...")
@@ -307,7 +307,7 @@ class MarkdownTranslater(Translater):
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
-                logger.error(f"error on url={url},id={id},error={str(e)}")
+                logger.info(f"error on url={url},id={id},error={str(e)}")
                 #raise e
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)
@@ -336,31 +336,65 @@ class MarkdownTranslater(Translater):
     def fix_markdown_table(self,markdown):
         pass                      
 class HTMLTranslater(Translater):
-    def update_dictionary(self, origin_soup, target_soup):
+    def update_dictionary(self, origin_soup, target_soup,url_id,block_idx,mask_key="__m__"):
+        logger.debug(f"1. enter function")
         if SoupLib.compare_soup_structure(origin_soup,target_soup):
             origin_texts = SoupLib.find_all_text(origin_soup)
             target_texts = SoupLib.find_all_text(target_soup)
+            logger.debug(f"2. compare soup structure")
             if len(origin_texts) == len(target_texts):
-                soup_dict = dict(zip(origin_texts,target_texts))
-                self.dictionary = {**soup_dict, **self.dictionary}
+                logger.debug(f"3. length equal {len(origin_texts)}")
+                for idx, origin_text in enumerate(origin_texts):
+                    target_text = target_texts[idx]
+                    logger.debug(f"4. idx: {idx},target_text : {target_text}")
+                    if not re.match(f"{mask_key}=(.{{6}})",target_text):
+                        hash = HashLib.md5(origin_text)[:6]
+                        logger.debug(f"5.1 hash={hash},url_id={url_id},block_idx={block_idx}")
+                        if not self.dictionary.get(hash):
+                            self.dictionary[hash] = {"origin_text":origin_text,"target_text":target_text,"refs":[]}
+                            if url_id and block_idx:
+                                self.dictionary[hash]["refs"].append({"url_id":url_id,"block_idx":block_idx})
+                    else:
+                        hash = re.findall(f"{mask_key}=(.{{6}})",target_text)[0]
+                        logger.debug(f"5.2 hash={hash},url_id={url_id},block_idx={block_idx}")
+                        if self.dictionary.get(hash):
+                            if url_id and block_idx:
+                                exits = False
+                                for item in self.dictionary[hash]["refs"]:
+                                    if item["url_id"] == url_id and item["block_idx"]==block_idx:
+                                        exits = True
+                                logger.debug(f"6. url_id & block_idx is exists? {exits}")
+                                if not exits:
+                                    self.dictionary[hash]["refs"].append({"url_id":url_id,"block_idx":block_idx})  
+
     def translate_html_text(self,url_id,chain,text,size=1000):
         if FileLib.existsFile(f"temp/{url_id}/soup.html"):
             html = FileLib.readFile(f"temp/{url_id}/soup.html")
             soup = SoupLib.html2soup(html)
-            hash_dict = FileLib.loadJson(f"temp/{url_id}/hash_dict.json")
-            blocks = FileLib.readFiles(f"temp/{url_id}","part_[0-9]*.html")
+            attribute_dict = FileLib.loadJson(f"temp/{url_id}/attribute_dict.json")
+            keep_dict = FileLib.loadJson(f"temp/{url_id}/keep_dict.json")
+            file_contents = FileLib.readFiles(f"temp/{url_id}","part_[0-9]*_en.html")
+            blocks = [ item[1] for item in sorted(file_contents.items())]
             newBlocks = []       
         else:
             soup = SoupLib.html2soup(text)
-            soup = SoupLib.add_tag(soup,"ignore",['//section[contains(@class,"right")]','//aside'])
-            hash_dict = SoupLib.hash_attribute(soup)
+            selectors = ['//h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"name")]',
+                         '//h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"type")]',
+                         '//h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"name")]',
+                         '//h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"type")]'
+            ]
+            soup,keep_dict = SoupLib.replace_block_with_tag(soup,"keep",selectors)
+            soup = SoupLib.wrap_block_with_tag(soup,"ignore",['//section[contains(@class,"right")]','//aside'])
+            attribute_dict = SoupLib.hash_attribute(soup)
             blocks = []
             newBlocks = []
+            FileLib.writeFile(f"temp/{url_id}/soup1.html",SoupLib.soup2html(soup))
             SoupLib.walk(soup, size=size,blocks=blocks,ignore_tags=["script", "style", "ignore","svg"])
             FileLib.writeFile(f"temp/{url_id}/soup.html",SoupLib.soup2html(soup))
-            FileLib.dumpJson(f"temp/{url_id}/hash_dict.json",hash_dict)
+            FileLib.dumpJson(f"temp/{url_id}/attribute_dict.json",attribute_dict)
+            FileLib.dumpJson(f"temp/{url_id}/keep_dict.json",keep_dict)
             for idx,block in enumerate(blocks):
-                FileLib.writeFile(f"temp/{url_id}/part_{str(idx).zfill(3)}.html",block)
+                FileLib.writeFile(f"temp/{url_id}/part_{str(idx).zfill(3)}_en.html",block)
                 
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
@@ -370,9 +404,12 @@ class HTMLTranslater(Translater):
                     pbar.update(1)
                 else:
                     try:
+                        logger.debug(f"1. block:{block},index:{index}")
                         soup_block = SoupLib.html2soup(block)
-                        if SoupLib.find_all_text(soup_block):
-                            SoupLib.replace_text_with_dictionary(soup_block,self.dictionary)
+                        SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
+                        #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
+                        #logger.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
+                        if SoupLib.find_all_text_without_mask(soup_block):
                             block_replaced = SoupLib.soup2html(soup_block)
                             result = chain.invoke(
                                 {
@@ -380,25 +417,30 @@ class HTMLTranslater(Translater):
                                 }
                             )
                             content = result.content
-                            self.update_dictionary(soup_block,SoupLib.html2soup(content))
-                            FileLib.writeFile(f"temp/{url_id}/part_{str(index).zfill(3)}_cn.html",content)
-                            newBlocks.append(content)
+                            new_soup_block = SoupLib.html2soup(content)
                         else:
-                            newBlocks.append(block)
+                            new_soup_block = soup_block
+                        self.update_dictionary(soup_block,new_soup_block,url_id=url_id,block_idx=index)
+                        SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
+                        new_block = SoupLib.soup2html(new_soup_block)
+                        #logger.debug(f"4. new_block:{new_block}")
+                        FileLib.writeFile(f"temp/{url_id}/part_{str(index).zfill(3)}_cn.html",new_block)
+                        newBlocks.append(new_block)
                         pbar.update(1)
                     except Exception as e:
-                        print(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
-                        #raise e
+                        logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                        raise e
         SoupLib.unwalk(soup,newBlocks)
-        SoupLib.unhash_attribute(soup,hash_dict)
-        soup = SoupLib.remove_tag(soup,"ignore")
+        SoupLib.unhash_attribute(soup,attribute_dict)
+        soup = SoupLib.unwrap_block_with_tag(soup,"ignore")
+        soup = SoupLib.restore_block_with_dict(soup,keep_dict,"keep")
         resultHtml = soup.prettify("utf-8")
         return resultHtml.decode("utf-8")
     async def get_html(self, url):
         async with PlaywrightLib(headless=False) as pw:
             await pw.goto(url,start_log="开始加载页面",end_log="页面加载完成",wait_until="domcontentloaded",timeout=180000)
             pw.wait(3000,start_log="等待3秒",end_log="等待结束")
-            print(await pw.selector_exists('//section[contains(@class,"right")]'))
+            logger.info(await pw.selector_exists('//section[contains(@class,"right")]'))
             request_show = await pw.selector_exists("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]")
             if request_show:
                 await pw.click("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]",start_log="点击Req Show all按钮")
@@ -432,7 +474,7 @@ class HTMLTranslater(Translater):
                     }
                     self.task[id] = taskItem
                 if taskItem.get('errorMsg'):
-                    logger.error(f"skip on url={url},id={id} ,because it is error ")
+                    logger.info(f"skip on url={url},id={id} ,because it is error ")
                     continue
                 if not os.path.exists(f"{id}.html"):
                     logger.info(f"提取html url= {url},id={id} ...")
@@ -460,7 +502,7 @@ class HTMLTranslater(Translater):
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
-                logger.error(f"error on url={url},id={id},error={str(e)}")
+                logger.info(f"error on url={url},id={id},error={str(e)}")
                 #raise e
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)
@@ -469,6 +511,10 @@ class HTMLTranslater(Translater):
 
 async def main():
     logger.setLevel(logging.INFO)
+    file_handler = logging.FileHandler("task.log")
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
     url = None
     if len(sys.argv) > 1:
         url = sys.argv[1]
@@ -544,8 +590,9 @@ async def main():
     # ###### html模式
     translater = HTMLTranslater(url=urls,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
     #translater.clearErrorMsg()
+    #await translater.start(size=2000,only_download=True)
     await translater.start(size=2000)
-    
+
     # ######  测试翻译html片段
     # print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
     # html = FileLib.readFile("part_13.html")
@@ -646,6 +693,13 @@ async def main():
     //*[@id="3RxeL"]
     //*[@id="d8Mc5"]
 
+    # 参数name/type/required
+    //h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"name")]
+    //h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"type")]
+    //h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"required")]
+    //h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"name")]
+    //h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"type")]
+    //h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"required")]
     '''
     
 
