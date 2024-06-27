@@ -5,11 +5,12 @@ from PIL import Image,ImageFont,ImageDraw
 import matplotlib.pyplot as plt
 import os
 import textwrap
-from utils.file_utils import *
-from utils.crypto_utils  import *
-from utils.image_utils import *
-from utils.langchain_utils import *
-from llava import Llava
+
+from translate.utils.file_utils import FileLib
+from translate.utils.crypto_utils  import HashLib
+from translate.utils.image_utils import *
+from translate.utils.langchain_utils import *
+from translate.llava import Llava
 import xml.etree.ElementTree as ET
 
 class ImageTranslater():

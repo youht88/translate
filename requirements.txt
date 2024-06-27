@@ -2,9 +2,8 @@ langchain
 langchain-openai
 langchain-community
 firecrawl-py
-#tqmd
+tqdm
 markdownify
-opencv-python
 paddlepaddle
 paddleocr
 logger

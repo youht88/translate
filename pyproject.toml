@@ -7,6 +7,16 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+langchain = "^0.2.6"
+langchain-openai = "^0.1.10"
+langchain-community = "^0.2.6"
+firecrawl-py = "^0.0.16"
+logger = "^1.4"
+playwright = "^1.44.0"
+paddlepaddle = "^2.6.1"
+paddleocr = "^2.7.3"
+markdownify = "^0.12.1"
+tqdm = "^4.66.4"
 
 
 [build-system]

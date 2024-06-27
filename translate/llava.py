@@ -5,8 +5,8 @@ from io import BytesIO
 from IPython.display import HTML, display
 import base64
 
-from utils.image_utils import *
-from utils.langchain_utils import *
+from translate.utils.image_utils import *
+from translate.utils.langchain_utils import *
 class Llava():
     def __init__(self):
         self.llm = get_ollama_llm(
