@@ -18,6 +18,9 @@ from translate.tools.markdown_translater import MarkdownTranslater
 from translate.tools.json_translater import JsonTranslater
 from translate.tools.html_translater import HtmlTranslater
 
+from translate.utils.data_utils import JsonLib
+from translate.utils.file_utils import FileLib
+
 
 async def main():
     logger.setLevel(logging.INFO)
@@ -85,12 +88,32 @@ async def main():
     # await translater.start(size=2000)
     
     ####### json模式
-    url = "https://global.alipay.com/docs/ac/ams/authconsult"
-    translater = JsonTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
-    translater.clearErrorMsg()
-    #await translater.start(size=2000,only_download=True)
-    translater.start(size=2000)
+    # url = "https://global.alipay.com/docs/ac/ams/authconsult"
+    # translater = JsonTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
+    # translater.clearErrorMsg()
+    # #await translater.start(size=2000,only_download=True)
+    # translater.start(size=2000)
     
+    ###### 测试json片段
+    json_data = FileLib.loadJson("b.json")
+    updates=[]
+    updates += JsonLib.find_key_value_path(json_data,"description")
+    updates += JsonLib.find_key_value_path(json_data,"x-result.[].message")
+    updates += JsonLib.find_key_value_path(json_data,"x-result.[].action") #actionLake
+    updates += JsonLib.find_key_value_path(json_data,"x-more") #x-more-lake
+
+    print(len(updates))
+    FileLib.dumpJson("a.json",updates)
+    
+    updates1=[]
+    updates1 += JsonLib.find_key_value_path(json_data,"properties.*.description") #descriptionLake
+    # updates += JsonLib.find_key_value_path(json_data,"codeDetails.description") #descriptionLake
+    #updates += JsonLib.find_key_value_path(json_data,"properties.displayType.description") #descriptionLake
+    #updates += JsonLib.find_key_value_path(json_data,"properties.codeValue.description") #descriptionLake
+    #updates += JsonLib.find_key_value_path(json_data,"properties.displayType.description") #descriptionLake
+    print(len(updates1))
+    FileLib.dumpJson("c.json",updates1)
+
     # ######  测试翻译html片段
     # print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
     # html = FileLib.readFile("part_13.html")

@@ -86,8 +86,9 @@ class Translater():
         self.crawler = crawler
         return crawler
     def clearErrorMsg(self):
+        logger.info("!!!!清除task所有的错误标记!!!!")
         for id,taskItem in self.task.items():
-            if taskItem.get("errorMsg") and taskItem.get("errorMsg")!="":
+            if taskItem.get("errorMsg",""):
                 taskItem["errorMsg"] = ""
         FileLib.dumpJson(self.taskFilename,self.task)
     def getLinks(self,url):

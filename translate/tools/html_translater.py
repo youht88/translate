@@ -154,7 +154,7 @@ class HtmlTranslater(Translater):
 
     async def start(self, imageAction:ImageAction|None=None,size=1500,only_download=False):
         total = len(self.url)
-        logger.info(f"begin on {total} urls\n")
+        logger.info(f"begin on {total} urls")
         startTime = time.time()
         chain = self.get_chain()
         for index,url in enumerate(self.url):

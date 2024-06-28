@@ -9,8 +9,8 @@ from translate import Translater, MarkdonwAction, ImageAction
 from translate.utils.crypto_utils import HashLib
 from translate.utils.file_utils import FileLib
 from translate.utils.langchain_utils import LangchainLib
-from translate.utils.playwright_utils import PlaywrightLib
 from translate.utils.soup_utils import SoupLib
+from translate.utils.data_utils import JsonLib
 
 class JsonTranslater(Translater):
     def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
@@ -71,9 +71,7 @@ class JsonTranslater(Translater):
                                 if not exits:
                                     self.dictionary[hash]["html_refs"].append({"url_id":url_id,"block_idx":block_idx})  
 
-    def translate_json_text(self,url_id,chain,text,size=1000):
-        logger.info(type(text))
-        #return text
+    def translate_json_text(self,url_id,chain,json_data,size=1000):
         if FileLib.existsFile(f"temp/{url_id}/json/soup.json"):
             html = FileLib.readFile(f"temp/{url_id}/json/soup.json")
             soup = SoupLib.html2soup(html)
@@ -83,7 +81,19 @@ class JsonTranslater(Translater):
             blocks = [ item[1] for item in sorted(file_contents.items())]
             newBlocks = []       
         else:
-            soup = SoupLib.html2soup(text)
+            updates=[]
+            updates += JsonLib.find_key_value_path(json_data,"info.description",no_dict=True)
+            updates += JsonLib.find_key_value_path(json_data,"properties.description",no_dict=True) #descriptionLake
+            updates += JsonLib.find_key_value_path(json_data,"codeDetails.description",no_dict=True) #descriptionLake
+            updates += JsonLib.find_key_value_path(json_data,"properties.displayType.description",no_dict=True) #descriptionLake
+            updates += JsonLib.find_key_value_path(json_data,"properties.codeValue.description",no_dict=True) #descriptionLake
+            updates += JsonLib.find_key_value_path(json_data,"properties.displayType.description",no_dict=True) #descriptionLake
+            updates += JsonLib.find_key_value_path(json_data,"x-result.[].message",no_dict=True)
+            updates += JsonLib.find_key_value_path(json_data,"x-result.[].action",no_dict=True) #actionLake
+            updates += JsonLib.find_key_value_path(json_data,"x-more",no_dict=True) #x-more-lake
+            logger.info(updates)
+            raise "debugger"
+            soup = SoupLib.html2soup(json_data)
             selectors = ['//h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"name")]',
                          '//h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"type")]',
                          '//h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"name")]',
@@ -94,17 +104,16 @@ class JsonTranslater(Translater):
             attribute_dict = SoupLib.hash_attribute(soup)
             blocks = []
             newBlocks = []
-            SoupLib.walk(soup, size=size,blocks=blocks,ignore_tags=["script", "style", "ignore","svg"])
-            FileLib.writeFile(f"temp/{url_id}/html/soup.html",SoupLib.soup2html(soup))
-            FileLib.dumpJson(f"temp/{url_id}/html/attribute_dict.json",attribute_dict)
-            FileLib.dumpJson(f"temp/{url_id}/html/keep_dict.json",keep_dict)
+            FileLib.dumpJson(f"temp/{url_id}/json/source.json",json_data)
+            FileLib.dumpJson(f"temp/{url_id}/json/attribute_dict.json",attribute_dict)
+            FileLib.dumpJson(f"temp/{url_id}/json/keep_dict.json",keep_dict)
             for idx,block in enumerate(blocks):
-                FileLib.writeFile(f"temp/{url_id}/html/part_{str(idx).zfill(3)}_en.html",block)
+                FileLib.writeFile(f"temp/{url_id}/json/part_{str(idx).zfill(3)}_en.html",block)
                 
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
-                if FileLib.existsFile(f"temp/{url_id}/html/part_{str(index).zfill(3)}_cn.html"):
-                    content = FileLib.readFile(f"temp/{url_id}/html/part_{str(index).zfill(3)}_cn.html")
+                if FileLib.existsFile(f"temp/{url_id}/json/part_{str(index).zfill(3)}_cn.html"):
+                    content = FileLib.readFile(f"temp/{url_id}/json/part_{str(index).zfill(3)}_cn.html")
                     newBlocks.append(content)
                     pbar.update(1)
                 else:
@@ -129,7 +138,7 @@ class JsonTranslater(Translater):
                         SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
                         new_block = SoupLib.soup2html(new_soup_block)
                         #logger.debug(f"4. new_block:{new_block}")
-                        FileLib.writeFile(f"temp/{url_id}/html/part_{str(index).zfill(3)}_cn.html",new_block)
+                        FileLib.writeFile(f"temp/{url_id}/json/part_{str(index).zfill(3)}_cn.html",new_block)
                         newBlocks.append(new_block)
                         pbar.update(1)
                     except Exception as e:
@@ -143,7 +152,7 @@ class JsonTranslater(Translater):
         return resultHtml.decode("utf-8")
     def start(self, size=1500):
         total = len(self.url)
-        logger.info(f"begin on {total} urls\n")
+        logger.info(f"begin on {total} urls")
         startTime = time.time()
         chain = self.get_chain()
         for index,url in enumerate(self.url):

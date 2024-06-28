@@ -70,7 +70,7 @@ class MarkdownTranslater(Translater):
         return "\n\n".join(newBlocks)
     def start(self, imageAction:ImageAction|None=None):
         total = len(self.url)
-        logger.info(f"begin on {total} urls\n")
+        logger.info(f"begin on {total} urls")
         startTime = time.time()
         chain = self.get_chain()
         for index,url in enumerate(self.url):
