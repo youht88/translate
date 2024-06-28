@@ -14,9 +14,9 @@ from logging.handlers import TimedRotatingFileHandler
 import asyncio
 
 from translate import MarkdonwAction,ImageAction
-from translate.markdown_translater import MarkdownTranslater
-from translate.json_translater import JsonTranslater
-from translate.html_translater import HtmlTranslater
+from translate.tools.markdown_translater import MarkdownTranslater
+from translate.tools.json_translater import JsonTranslater
+from translate.tools.html_translater import HtmlTranslater
 
 
 async def main():
