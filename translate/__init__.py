@@ -22,7 +22,7 @@ from translate.utils.langchain_utils import *
 
 from enum import Enum
 
-print("translate init....")
+#print("translate init....")
 class MarkdonwAction(Enum):
     CRAWLER = 1
     JINA = 2

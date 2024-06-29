@@ -4,14 +4,15 @@ import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # 获取 translate 目录的父目录
 parent_dir = os.path.dirname(current_dir)
-print("parent_dir",parent_dir)
+#print("parent_dir",parent_dir)
 sys.path.append(parent_dir)
-print(sys.path)
+#print(sys.path)
 
 from logger import logger
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import asyncio
+import argparse
 
 from translate import MarkdonwAction,ImageAction
 from translate.tools.markdown_translater import MarkdownTranslater
@@ -23,9 +24,30 @@ from translate.utils.file_utils import FileLib
 
 
 async def main():
-    logger.setLevel(logging.DEBUG)
+     # 分析命令行参数
+    parser = argparse.ArgumentParser(description="渐进式翻译系统")
+    parser.add_argument("--mode",type=str,required=True,choices=["markdown","html","json"],help="翻译操作模式")
+    parser.add_argument("--url",type=str,help="url地址,如果不指定则从--url_file文件获取")
+    parser.add_argument("-f","--url_file",type=str,help="包含一行或多行url的文件,指定url时忽略此参数")
+    parser.add_argument("--crawl",type=int,default=0,choices=[0,1,2,3],help="爬取网页的层级深度,默认:0,表示仅当前网页")
+    parser.add_argument("--only_download",type=bool,default=False,help="仅下载网页html,不进行翻译。默认:False (json模式该参数不起作用)")
+    parser.add_argument("-s","--size",type=int,default=1500,help="切分文件的字节大小,默认:1500")
+    parser.add_argument("-c","--clear_error",action="store_true",help="清除task.json文件中的错误信息,默认:False")
+    parser.add_argument("--log_level",type=str,default="INFO",choices=["INFO","DEBUG"],help="日志级别,默认:INFO")
+    parser.add_argument("--log",type=str,default="task.log",help="日志文件名称")
+    
+    #parser.add_argument("-markdown_action",type=str)
+    args = parser.parse_args()
+    logger.info(f"参数:{args}")
+
+    # 设置logger
+    if args.log_level == "INFO":
+        logger.setLevel(logging.INFO)
+    else:
+        logger.setLevel(logging.DEBUG)
+
     file_handler = TimedRotatingFileHandler(
-        filename="task.log",
+        filename=args.log,
         when="midnight",  # 每天午夜滚动
         interval=1,  # 滚动间隔为 1 天
         backupCount=7,  # 保留 7 天的日志文件
@@ -34,86 +56,37 @@ async def main():
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    url = None
-    if len(sys.argv) > 1:
-        url = sys.argv[1]
-    crawlLevel = 0
-    if len(sys.argv) > 2:
-        crawlLevel = int(sys.argv[2])
+ 
+    mode = args.mode
+    url = args.url
     if not url:
-        url = ["https://global.alipay.com/docs/ac/ams/authconsult",
-            "https://global.alipay.com/docs/ac/ams/notifyauth",
-            "https://global.alipay.com/docs/ac/ams/accesstokenapp",
-            "https://global.alipay.com/docs/ac/ams/authrevocation",
-            "https://global.alipay.com/docs/ac/ams/vaulting_session",
-            "https://global.alipay.com/docs/ac/ams/vault_method",
-            "https://global.alipay.com/docs/ac/ams/notify_vaulting",
-            "https://global.alipay.com/docs/ac/ams/inquire_vaulting",
-            "https://global.alipay.com/docs/ac/ams/consult",
-            "https://global.alipay.com/docs/ac/ams/payment_cashier",
-            "https://global.alipay.com/docs/ac/ams/session_cashier",
-            "https://global.alipay.com/docs/ac/ams/capture",
-            "https://global.alipay.com/docs/ac/ams/payment_agreement",
-            "https://global.alipay.com/docs/ac/ams/createpaymentsession_easypay",
-            "https://global.alipay.com/docs/ac/ams/paymentrn_online",
-            "https://global.alipay.com/docs/ac/ams/notify_capture",
-            "https://global.alipay.com/docs/ac/ams/paymentri_online",
-            "https://global.alipay.com/docs/ac/ams/paymentc_online",
-            "https://global.alipay.com/docs/ac/ams/create_sub",
-            "https://global.alipay.com/docs/ac/ams/notify_sub",
-            "https://global.alipay.com/docs/ac/ams/notify_subpayment",
-            "https://global.alipay.com/docs/ac/ams/change_sub",
-            "https://global.alipay.com/docs/ac/ams/cancel_sub",
-            "https://global.alipay.com/docs/ac/ams/accept",
-            "https://global.alipay.com/docs/ac/ams/supply_evidence",
-            "https://global.alipay.com/docs/ac/ams/download",
-            "https://global.alipay.com/docs/ac/ams/notify_dispute",
-            "https://global.alipay.com/docs/ac/ams/refund_online",
-            "https://global.alipay.com/docs/ac/ams/notify_refund",
-            "https://global.alipay.com/docs/ac/ams/ir_online",
-            "https://global.alipay.com/docs/ac/ams/declare",
-            "https://global.alipay.com/docs/ac/ams/inquirydeclare"
-            ]
+        file_text = FileLib.readFile(args.url_file)
+        url = file_text.split("\n")    
+    crawlLevel = args.crawl
+    only_download = args.only_download
+    size = args.size
+    clear_error_msg = args.clear_error
+
+    if mode == "markdown": 
+        ###### markdown模式
+        translater = MarkdownTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
+        if clear_error_msg:
+            translater.clearErrorMsg()
+        translater.start(imageAction=ImageAction.MARK)
+        translater.start()
+    elif mode == "html":
+        ###### html模式
+        translater = HtmlTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
+        if clear_error_msg:
+            translater.clearErrorMsg()
+        await translater.start(size=size,only_download=only_download)
+    elif mode == "json":
+        ###### json模式
+        translater = JsonTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
+        if clear_error_msg:
+            translater.clearErrorMsg()
+        translater.start(size=size)
         
-    ###### markdown模式
-    # translater = MarkdownTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
-    # translater.clearErrorMsg()
-    # translater.start(imageAction=ImageAction.MARK)
-    # #translater.start()
-
-    # ###### html模式
-    # translater = HtmlTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
-    # #translater.clearErrorMsg()
-    # #await translater.start(size=2000,only_download=True)
-    # await translater.start(size=2000)
-    
-    ####### json模式
-    #url = "https://global.alipay.com/docs/ac/ams/authconsult"
-    translater = JsonTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
-    translater.clearErrorMsg()
-    #await translater.start(size=2000,only_download=True)
-    translater.start(size=2000)
-    
-    ###### 测试json片段
-    # json_data = FileLib.loadJson("b.json")
-    # updates=[]
-    # updates += JsonLib.find_key_value_path(json_data,"description")
-    # updates += JsonLib.find_key_value_path(json_data,"x-result.[].message")
-    # updates += JsonLib.find_key_value_path(json_data,"x-result.[].action") #actionLake
-    # updates += JsonLib.find_key_value_path(json_data,"x-more") #x-more-lake
-
-    # print(len(updates))
-    # FileLib.dumpJson("a.json",updates)
-    
-    # updates1=[]
-    # updates1 += JsonLib.find_key_value_path(json_data,"properties.*.description") #descriptionLake
-    # # updates += JsonLib.find_key_value_path(json_data,"codeDetails.description") #descriptionLake
-    # #updates += JsonLib.find_key_value_path(json_data,"properties.displayType.description") #descriptionLake
-    # #updates += JsonLib.find_key_value_path(json_data,"properties.codeValue.description") #descriptionLake
-    # #updates += JsonLib.find_key_value_path(json_data,"properties.displayType.description") #descriptionLake
-    # print(len(updates1))
-    # FileLib.dumpJson("c.json",updates1)
-
     # ######  测试翻译html片段
     # print(1,translater.config.get("LLM",{}).get("SILICONFLOW_API_KEY"))
     # html = FileLib.readFile("part_13.html")
