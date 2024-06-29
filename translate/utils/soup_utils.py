@@ -1,5 +1,6 @@
 import re
 import json
+from typing import List
 from bs4 import BeautifulSoup
 from bs4.element import Tag, Comment
 from utils.crypto_utils import HashLib
@@ -9,7 +10,7 @@ import requests
 from lxml import etree
 class SoupLib():
     @classmethod
-    def html2soup(cls, html):
+    def html2soup(cls, html) -> BeautifulSoup:
         #提取被```html包裹的部分，如果没有则转换整个html
         p=r"```html\n(.*?)\n```"
         res = re.findall(p,html,re.DOTALL)
@@ -61,28 +62,33 @@ class SoupLib():
         return cls.html2soup(html)  
 
     @classmethod
-    def wrap_block_with_tag(cls, soup, tag_name, selectors):
+    def wrap_block_with_tag(cls, soup, tag_name:str, selectors:List[str]) -> BeautifulSoup:
         #为符合selectors(xpath)的元素(第一个)套上tag_name
+        #如果没有指定selectors，则直接wrap soup
         #如果已经有tag_name则不会重复嵌套tag_name
         # 返回新的soup
         tree = etree.HTML(str(soup))
-        for selector in selectors:
-            elems = tree.xpath(selector) 
-            if elems:
-                elem = elems[0]
-                tag_element = etree.Element(tag_name)
-                parent = elem.getparent()
-                if parent and parent.tag!=tag_name:
-                    parent.replace(elem, tag_element)
-                    tag_element.append(elem)
-                    # parent = elem.getparent()
-                    # index = parent.index(elem)
-                    # parent.insert(index, tag_element)
-        html = etree.tostring(tree).decode()
-        
+        if selectors:
+            for selector in selectors:
+                elems = tree.xpath(selector) 
+                if elems:
+                    elem = elems[0]
+                    tag_element = etree.Element(tag_name)
+                    parent = elem.getparent()
+                    if parent and parent.tag!=tag_name:
+                        parent.replace(elem, tag_element)
+                        tag_element.append(elem)
+                        # parent = elem.getparent()
+                        # index = parent.index(elem)
+                        # parent.insert(index, tag_element)
+            html = etree.tostring(tree).decode()
+        else:
+            tag_element = etree.Element(tag_name)
+            tag_element.append(tree)
+            html = etree.tostring(tag_element).decode()
         return cls.html2soup(html)            
     @classmethod
-    def unwrap_block_with_tag(cls, soup, tag_name):
+    def unwrap_block_with_tag(cls, soup, tag_name:str) -> BeautifulSoup:
         #去除tag_name
         #返回新的soup
 

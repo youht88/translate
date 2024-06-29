@@ -6,9 +6,9 @@ import glob
 
 class FileLib():
     @classmethod
-    def loadJson(cls, filename):
+    def loadJson(cls, filename,encoding='utf8'):
         try:
-            with open(filename,"r",encoding='utf8') as f:
+            with open(filename,"r",encoding=encoding) as f:
                 data = json.load(f)
         except Exception as e:
             logger.info(f"{filename} error.")

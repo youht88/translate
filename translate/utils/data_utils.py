@@ -144,10 +144,16 @@ class JsonLib:
         _process_keys(json_data, keys, [])
         return results
     @classmethod
-    def update_json_by_path(cls, json_data, updates=[], func=None):
+    def update_json_by_path(cls, json_data:dict, updates=[], func=None)->dict:
+        # updates = [
+        #   {"value":"abc","path":["a","b",1,"c"]}
+        #   {"value":"xyz","path":["x","0",y,"z"]}
+        #   ...
+        # ]
+        # 将用func("abc") 更新a.b[1].c
+        #    func("xyz") 更新x[0].y.z
         def _update_json_recursive(data, path, value):
             """递归地更新 JSON 数据。"""
-
             if not path:  # 路径为空，直接返回
                 return
 

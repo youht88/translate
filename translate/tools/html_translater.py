@@ -4,6 +4,7 @@ import re
 import time
 import os
 import textwrap
+import traceback
 
 from translate import Translater, MarkdonwAction, ImageAction
 from translate.utils.soup_utils import SoupLib
@@ -56,6 +57,8 @@ class HtmlTranslater(Translater):
                         if self.dictionary.get(hash):
                             if url_id and block_idx:
                                 exits = False
+                                if not hasattr(self.dictionary[hash],"html_refs"):
+                                    self.dictionary[hash]["html_refs"]=[]
                                 for item in self.dictionary[hash]["html_refs"]:
                                     if item["url_id"] == url_id and item["block_idx"]==block_idx:
                                         exits = True
@@ -64,14 +67,14 @@ class HtmlTranslater(Translater):
                                     self.dictionary[hash]["html_refs"].append({"url_id":url_id,"block_idx":block_idx})  
 
     def translate_html_text(self,url_id,chain,text,size=1000):
+        newBlocks = [] 
         if FileLib.existsFile(f"temp/{url_id}/html/soup.html"):
             html = FileLib.readFile(f"temp/{url_id}/html/soup.html")
             soup = SoupLib.html2soup(html)
             attribute_dict = FileLib.loadJson(f"temp/{url_id}/html/attribute_dict.json")
             keep_dict = FileLib.loadJson(f"temp/{url_id}/html/keep_dict.json")
             file_contents = FileLib.readFiles(f"temp/{url_id}/html","part_[0-9]*_en.html")
-            blocks = [ item[1] for item in sorted(file_contents.items())]
-            newBlocks = []       
+            blocks = [ item[1] for item in sorted(file_contents.items())]                  
         else:
             soup = SoupLib.html2soup(text)
             selectors = ['//h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"name")]',
@@ -83,7 +86,6 @@ class HtmlTranslater(Translater):
             soup = SoupLib.wrap_block_with_tag(soup,"ignore",['//section[contains(@class,"right")]','//aside'])
             attribute_dict = SoupLib.hash_attribute(soup)
             blocks = []
-            newBlocks = []
             SoupLib.walk(soup, size=size,blocks=blocks,ignore_tags=["script", "style", "ignore","svg"])
             FileLib.writeFile(f"temp/{url_id}/html/soup.html",SoupLib.soup2html(soup))
             FileLib.dumpJson(f"temp/{url_id}/html/attribute_dict.json",attribute_dict)
@@ -124,6 +126,7 @@ class HtmlTranslater(Translater):
                         pbar.update(1)
                     except Exception as e:
                         logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                        traceback.print_exc()
                         raise e
         SoupLib.unwalk(soup,newBlocks)
         SoupLib.unhash_attribute(soup,attribute_dict)

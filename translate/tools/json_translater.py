@@ -1,3 +1,5 @@
+import traceback
+from typing import List, Tuple
 from logger import logger
 from tqdm import tqdm
 import re
@@ -55,61 +57,93 @@ class JsonTranslater(Translater):
                         hash = HashLib.md5(origin_text)[:6]
                         logger.debug(f"5.1 hash={hash},url_id={url_id},block_idx={block_idx}")
                         if not self.dictionary.get(hash):
-                            self.dictionary[hash] = {"origin_text":origin_text,"target_text":target_text,"html_refs":[]}
+                            self.dictionary[hash] = {"origin_text":origin_text,"target_text":target_text,"json_refs":[]}
                             if url_id and block_idx:
-                                self.dictionary[hash]["html_refs"].append({"url_id":url_id,"block_idx":block_idx})
+                                self.dictionary[hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})
                     else:
                         hash = re.findall(f"{mask_key}=(.{{6}})",target_text)[0]
                         logger.debug(f"5.2 hash={hash},url_id={url_id},block_idx={block_idx}")
                         if self.dictionary.get(hash):
                             if url_id and block_idx:
                                 exits = False
-                                for item in self.dictionary[hash]["html_refs"]:
+                                if not hasattr(self.dictionary[hash],"json_refs"):
+                                    self.dictionary[hash]["json_refs"]=[]
+                                for item in self.dictionary[hash]["json_refs"]:
                                     if item["url_id"] == url_id and item["block_idx"]==block_idx:
                                         exits = True
                                 logger.debug(f"6. url_id & block_idx is exists? {exits}")
                                 if not exits:
-                                    self.dictionary[hash]["html_refs"].append({"url_id":url_id,"block_idx":block_idx})  
+                                    self.dictionary[hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})  
 
+    def split_json_and_replace_struct(self, json_data_list, size) -> Tuple[List[str],dict]:
+        length =0
+        blocks=[]
+        block_items=[]
+        for item in json_data_list:
+            item_len = len(item["value"])
+            if length + item_len > size:
+                blocks.append(block_items.copy())
+                length = 0
+                block_items=[]
+                block_items.append(item)
+            else:
+                block_items.append(item)
+                length += item_len
+        
+        path_dict = {}
+        restruct_blocks=[]
+        for block_items in blocks:
+            restruct_block = None
+            html = ""
+            for block in block_items:
+                hash = HashLib.md5("/".join([str(item) for item in block["path"]]))[:6]
+                path_dict[hash] = block["path"]
+                html += f"<div hash={hash}>{block['value']}</div>"
+            restruct_blocks.append(html)
+            #restruct_block = SoupLib.wrap_block_with_tag(SoupLib.html2soup(html,"html.parser"),"div")
+            #restruct_blocks.append(restruct_block)              
+        return restruct_blocks,path_dict    
+    def restore_struct_and_join_json(self,html_data_list:list[list[str]],path_dict:dict) -> List[dict]:
+        # html_data_list example:
+        # ["<div hash="33b031"><p>abc</p> </div>
+        #   <div hash="33b032"><p>123</p> </div>",
+        #  "<div hash="33b033"><p>xyz</p> </div>
+        #   <div hash="33b034"><p>456</p> </div>",
+        # ]
+        new_updates = []
+        for html_data in html_data_list:
+            soup_data = SoupLib.html2soup(html_data)
+            contents = soup_data.contents
+            for content in contents:
+                hash = content.attrs.get("hash")
+                if hash:
+                    path = path_dict.get(hash)
+                    if path:
+                        value = "".join([str(item) for item in content.contents])
+                        new_updates.append({"value":value,"path":path})
+        return new_updates                    
     def translate_json_text(self,url_id,chain,json_data,size=1000):
-        if FileLib.existsFile(f"temp/{url_id}/json/soup.json"):
-            html = FileLib.readFile(f"temp/{url_id}/json/soup.json")
-            soup = SoupLib.html2soup(html)
-            attribute_dict = FileLib.loadJson(f"temp/{url_id}/html/attribute_dict.json")
-            keep_dict = FileLib.loadJson(f"temp/{url_id}/html/keep_dict.json")
-            file_contents = FileLib.readFiles(f"temp/{url_id}/json","part_[0-9]*_en.json")
-            blocks = [ item[1] for item in sorted(file_contents.items())]
-            newBlocks = []       
+        newBlocks = []  
+        if FileLib.existsFile(f"temp/{url_id}/json/source.json"):
+            updates = FileLib.loadJson(f"temp/{url_id}/json/source.json")
+            keep_dict = FileLib.loadJson(f"temp/{url_id}/json/keep_dict.json")
+            path_dict = FileLib.loadJson(f"temp/{url_id}/json/path_dict.json")
+            file_contents = FileLib.readFiles(f"temp/{url_id}/json","part_[0-9]*_en.html")
+            blocks = [ item[1] for item in sorted(file_contents.items())]     
         else:
             updates=[]
-            updates += JsonLib.find_key_value_path(json_data,"info.description",no_dict=True)
-            updates += JsonLib.find_key_value_path(json_data,"properties.description",no_dict=True) #descriptionLake
-            updates += JsonLib.find_key_value_path(json_data,"codeDetails.description",no_dict=True) #descriptionLake
-            updates += JsonLib.find_key_value_path(json_data,"properties.displayType.description",no_dict=True) #descriptionLake
-            updates += JsonLib.find_key_value_path(json_data,"properties.codeValue.description",no_dict=True) #descriptionLake
-            updates += JsonLib.find_key_value_path(json_data,"properties.displayType.description",no_dict=True) #descriptionLake
-            updates += JsonLib.find_key_value_path(json_data,"x-result.[].message",no_dict=True)
-            updates += JsonLib.find_key_value_path(json_data,"x-result.[].action",no_dict=True) #actionLake
-            updates += JsonLib.find_key_value_path(json_data,"x-more",no_dict=True) #x-more-lake
-            logger.info(updates)
-            raise "debugger"
-            soup = SoupLib.html2soup(json_data)
-            selectors = ['//h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"name")]',
-                         '//h4[starts-with(@id,"Requestparameters")]/span[starts-with(@class,"type")]',
-                         '//h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"name")]',
-                         '//h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"type")]'
-            ]
-            soup,keep_dict = SoupLib.replace_block_with_tag(soup,"keep",selectors)
-            soup = SoupLib.wrap_block_with_tag(soup,"ignore",['//section[contains(@class,"right")]','//aside'])
-            attribute_dict = SoupLib.hash_attribute(soup)
-            blocks = []
-            newBlocks = []
-            FileLib.dumpJson(f"temp/{url_id}/json/source.json",json_data)
-            FileLib.dumpJson(f"temp/{url_id}/json/attribute_dict.json",attribute_dict)
+            updates += JsonLib.find_key_value_path(json_data,"description") #descriptionLake
+            updates += JsonLib.find_key_value_path(json_data,"x-result.[].message")
+            updates += JsonLib.find_key_value_path(json_data,"x-result.[].action") #actionLake
+            updates += JsonLib.find_key_value_path(json_data,"x-more") #x-more-lake
+            
+            keep_dict = {}
+            blocks,path_dict = self.split_json_and_replace_struct(updates,size)
+            FileLib.dumpJson(f"temp/{url_id}/json/source.json",updates)
             FileLib.dumpJson(f"temp/{url_id}/json/keep_dict.json",keep_dict)
+            FileLib.dumpJson(f"temp/{url_id}/json/path_dict.json",path_dict)
             for idx,block in enumerate(blocks):
                 FileLib.writeFile(f"temp/{url_id}/json/part_{str(idx).zfill(3)}_en.html",block)
-                
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
                 if FileLib.existsFile(f"temp/{url_id}/json/part_{str(index).zfill(3)}_cn.html"):
@@ -123,6 +157,7 @@ class JsonTranslater(Translater):
                         SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
                         #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
                         #logger.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
+                        #FileLib.writeFile(f"temp/{url_id}/json/{index}.html",SoupLib.soup2html(soup_block))
                         if SoupLib.find_all_text_without_mask(soup_block):
                             block_replaced = SoupLib.soup2html(soup_block)
                             result = chain.invoke(
@@ -142,14 +177,15 @@ class JsonTranslater(Translater):
                         newBlocks.append(new_block)
                         pbar.update(1)
                     except Exception as e:
+                        traceback.print_exc()
                         logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                         raise e
-        SoupLib.unwalk(soup,newBlocks)
-        SoupLib.unhash_attribute(soup,attribute_dict)
-        soup = SoupLib.unwrap_block_with_tag(soup,"ignore")
-        soup = SoupLib.restore_block_with_dict(soup,keep_dict,"keep")
-        resultHtml = soup.prettify("utf-8")
-        return resultHtml.decode("utf-8")
+        
+        # soup = SoupLib.restore_block_with_dict(soup,keep_dict,"keep")
+        new_updates = self.restore_struct_and_join_json(newBlocks,path_dict)
+        FileLib.dumpJson(f"temp/{url_id}/json/new_updates.json",new_updates)   
+        resultJson = JsonLib.update_json_by_path(json_data,new_updates,lambda value:value)
+        return resultJson
     def start(self, size=1500):
         total = len(self.url)
         logger.info(f"begin on {total} urls")
@@ -172,7 +208,15 @@ class JsonTranslater(Translater):
                     continue
                 if not os.path.exists(f"{id}.json"):
                     logger.info(f"没有发现json文件 url= {url},id={id} ...")
-                    continue
+                    json_file = taskItem.get("json")
+                    if json_file:
+                        originJson = FileLib.loadJson(json_file,encoding="cp1252")
+                        if json_file:
+                            FileLib.dumpJson(f"{id}.json",originJson)
+                        else:
+                            continue
+                    else:
+                        continue
                 else:
                     originJson = FileLib.loadJson(f"{id}.json")
                 resultJson = None
