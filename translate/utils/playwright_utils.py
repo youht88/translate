@@ -186,10 +186,10 @@ async def main():
     #url = "https://global.alipay.com/docs/ac/ams/payment_cashier"
     #url = "https://global.alipay.com/docs/ac/ams/supply_evidence"
     url  = "https://global.alipay.com/docs/ac/ams/api_fund"
-    llm = get_chatopenai_llm(
+    langchainLib = LangchainLib()
+    llm = langchainLib.get_chatopenai_llm(
             base_url="https://api.siliconflow.cn/v1",
-            api_key="sk-hptoxydedriehcprxcpeswodedcsvapwpzlpuarkyymjeodl",
-            #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
+            api_key="api_key",
             model="alibaba/Qwen1.5-110B-Chat",temperature=0)
     systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。
     现在请将下面的HTML格式文档全部翻译成中文,输出HTML文档。
@@ -200,7 +200,7 @@ async def main():
         4、保留所有原始的HTML格式
         5、检查翻译的结果,以确保语句通顺
     \n\n"""
-    prompt = get_prompt(textwrap.dedent(systemPromptText))
+    prompt = langchainLib.get_prompt(textwrap.dedent(systemPromptText))
     chain = prompt | llm
     # html = readFile("/Users/youht/source/python/translate/translate/test/Response header.html")
     # async with PlaywrightWrapper(headless=False) as pw:

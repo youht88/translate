@@ -35,8 +35,7 @@ class ImageTranslater():
     def get_ocr_chain(self):
         llm = self.langchainLib.get_chatopenai_llm(
             base_url="https://api.together.xyz/v1",
-            api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
-            #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
+            api_key="api_key",
             model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。现在将下面的英文文字翻译成中文
             要求:
@@ -52,8 +51,7 @@ class ImageTranslater():
     def get_svg_chain(self):
         llm = self.langchainLib.get_chatopenai_llm(
             base_url="https://api.together.xyz/v1",
-            api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",
-            #api_key="87858a89501682c170edef2f95eabca805b297b4260f3c551eef8521cc69cb87",
+            api_key="api_key",
             model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         systemPromptText = """以下单词或语句出自金融业务的流程图，请将其翻译成中文，
         要求：

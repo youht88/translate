@@ -93,8 +93,6 @@ async def main():
     # print(2,html)
     # res = translater.html_chain.invoke({"input":html})
     # print(res.content)
-    #llm = ChatOpenAI(base_url="https://api.together.xyz/v1",api_key="398494c6fb9f45648b946fe3aa02c8ba84ac083479e933bb8f7e27eed3fb95f5",model="Qwen/Qwen1.5-72B-Chat")
-    #llm.invoke("hello")
     ##### playwright
     '''
     async with PlaywrightLib(headless=False) as pw:
