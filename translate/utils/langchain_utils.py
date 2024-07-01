@@ -11,7 +11,7 @@ from langchain.docstore.document import Document
 
 from gradio_client import Client,file
 import re
-from utils.file_utils import *
+from .file_utils import FileLib
 import textwrap
 
 class LangchainLib():
@@ -149,11 +149,12 @@ if __name__ == "__main__":
     #     writeFile(f"test-{index}.md",part)
     
     # 测试hf opengpt4o
-    client = get_opengpt4o_client("api_key")
+    langchainLib = LangchainLib()
+    client = langchainLib.get_opengpt4o_client("api_key")
     prompt = """识别图片的类型，返回JSON格式：
                 {type:图片类型(流程图、架构图、界面图、其他}
             """
-    result = opengpt4o_predict(client,
+    result = langchainLib.opengpt4o_predict(client,
                             prompt=textwrap.dedent(prompt),imageUrl=None)
     print(result)
 

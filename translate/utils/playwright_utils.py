@@ -4,8 +4,8 @@ from playwright.async_api import async_playwright, Browser, Page
 import time
 from logger import logger
 import shlex
-from utils.langchain_utils import *
-from utils.soup_utils import SoupLib
+from .langchain_utils import *
+from .soup_utils import SoupLib
 from tqdm import tqdm
 
 class PlaywrightLib:

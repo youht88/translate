@@ -9,7 +9,8 @@ from translate.utils.image_utils import *
 from translate.utils.langchain_utils import *
 class Llava():
     def __init__(self):
-        self.llm = get_ollama_llm(
+        langchainLib = LangchainLib()
+        self.llm = langchainLib.get_ollama_llm(
             base_url = "http://youht.cc:18034",
             model="llava:34b",
             temperature=0
