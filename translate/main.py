@@ -23,7 +23,7 @@ from translate.utils.data_utils import JsonLib
 from translate.utils.file_utils import FileLib
 
 
-async def main():
+async def start_task():
      # 分析命令行参数
     parser = argparse.ArgumentParser(description="渐进式翻译系统")
     parser.add_argument("--mode",type=str,required=True,choices=["markdown","html","json"],help="翻译操作模式")
@@ -193,6 +193,7 @@ async def main():
     //h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"type")]
     //h4[starts-with(@id,"Responseparameters")]/span[starts-with(@class,"required")]
     '''
-    
+def main():
+    asyncio.run(start_task()) 
 if __name__ == "__main__":   
-    asyncio.run(main()) 
+    main()
