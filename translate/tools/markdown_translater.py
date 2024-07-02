@@ -13,8 +13,8 @@ from translate.utils.crypto_utils import HashLib
 from translate.utils.langchain_utils import LangchainLib
 
 class MarkdownTranslater(Translater):
-    def __init__(self,url,crawlLevel=1, markdownAction=MarkdonwAction.JINA):
-        super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction)
+    def __init__(self,url,crawlLevel=1, markdownAction=MarkdonwAction.JINA,env_file=None):
+        super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction,env_file=env_file)
         self.langchainLib = LangchainLib()
     # translater = MarkdownTranslater(url= url,crawlLevel=1,markdownAction=MarkdonwAction.JINA)
     # translater.start()

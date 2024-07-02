@@ -12,6 +12,7 @@ from tqdm import tqdm
 import textwrap
 # Install with pip install firecrawl-py
 from firecrawl import FirecrawlApp
+from logger import logger
 
 import random
 
@@ -33,13 +34,13 @@ class ImageAction(Enum):
 
 class Translater():
     def __init__(self,url:str|list[str]|None=None,dictionaryFilename="dictionary.json",
-                 taskFilename="task.json",crawlLevel=1,limit=10,markdownAction=MarkdonwAction.CRAWLER):
+                 taskFilename="task.json",crawlLevel=1,limit=10,markdownAction=MarkdonwAction.CRAWLER,env_file=None):
         self.markdownAction = markdownAction
         self.limit = limit
         self.crawlLevel = crawlLevel
         self.taskFilename = taskFilename
         self.imageTranslater = None
-        self.config = Config()
+        self.config = Config('translate',env_file)
         FileLib.mkdir("temp")
         if type(url)==list:
             self.url = url
@@ -71,7 +72,6 @@ class Translater():
         else:
             self.task = FileLib.loadJson(self.taskFilename)
             self.url = list(map(lambda x:x["url"],self.task.values()))
-            print(self.url)
         self.verify_args()
         self.dictionaryFilename = dictionaryFilename
         self.setCrawl()

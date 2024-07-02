@@ -14,8 +14,8 @@ from translate.utils.playwright_utils import PlaywrightLib
 from translate.utils.langchain_utils import LangchainLib
 
 class HtmlTranslater(Translater):
-    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
-        super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction)
+    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA,env_file=None):
+        super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction,env_file=env_file)
         self.langchainLib = LangchainLib()
     def get_chain(self):
         llm = self.langchainLib.get_chatopenai_llm(
@@ -126,7 +126,6 @@ class HtmlTranslater(Translater):
                         pbar.update(1)
                     except Exception as e:
                         logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
-                        traceback.print_exc()
                         raise e
         SoupLib.unwalk(soup,newBlocks)
         SoupLib.unhash_attribute(soup,attribute_dict)

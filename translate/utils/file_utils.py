@@ -44,11 +44,28 @@ class FileLib():
     def existsFile(cls,filename):
         return os.path.exists(filename)
     @classmethod
+    def rmFile(cls,filename):
+        try:
+            if not os.path.exists(filename):
+                logger.info(f"文件 {filename} 不存在.")
+                return
+            os.remove(filename)
+            logger.info(f"文件 {filename} 已被删除.")
+        except Exception as e:
+            logger.info(f"删除文件 {filename} 失败.")    
+    @classmethod
     def mkdir(cls,path):
         os.makedirs(path,exist_ok=True)
     @classmethod
     def rmdir(cls,path):
-        shutil.rmtree(path,ignore_errors=True)
+        try:
+            if not os.path.exists(path):
+                logger.info(f"目录 {path} 不存在.")
+                return    
+            shutil.rmtree(path,ignore_errors=True)
+            logger.info(f"目录 {path} 已被删除.")
+        except Exception as e:
+            logger.info(f"删除目录 {path} 失败.") 
     @classmethod
     def readFiles(cls,dir,files_glob):
         # 返回文件的内容的字典，key为文件名

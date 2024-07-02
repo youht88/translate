@@ -1,13 +1,6 @@
 import os
 import sys
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# 获取 translate 目录的父目录
-parent_dir = os.path.dirname(current_dir)
-#print("parent_dir",parent_dir)
-sys.path.append(parent_dir)
-#print(sys.path)
-
 from logger import logger
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -21,6 +14,7 @@ from translate.tools.html_translater import HtmlTranslater
 
 from translate.utils.data_utils import JsonLib
 from translate.utils.file_utils import FileLib
+from translate.utils.crypto_utils import HashLib
 
 
 async def start_task():
@@ -35,16 +29,14 @@ async def start_task():
     parser.add_argument("-c","--clear_error",action="store_true",help="清除task.json文件中的错误信息,默认:False")
     parser.add_argument("--log_level",type=str,default="INFO",choices=["INFO","DEBUG"],help="日志级别,默认:INFO")
     parser.add_argument("--log",type=str,default="task.log",help="日志文件名称")
+    parser.add_argument("--env_file",type=str,required=False,help="配置文件名称")
     
     #parser.add_argument("-markdown_action",type=str)
     args = parser.parse_args()
     logger.info(f"参数:{args}")
 
     # 设置logger
-    if args.log_level == "INFO":
-        logger.setLevel(logging.INFO)
-    else:
-        logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO if args.log_level=="INFO" else logging.DEBUG)
 
     file_handler = TimedRotatingFileHandler(
         filename=args.log,
@@ -57,11 +49,13 @@ async def start_task():
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
  
+    env_file = args.env_file
     mode = args.mode
     url = args.url
     if not url:
-        file_text = FileLib.readFile(args.url_file)
-        url = file_text.split("\n")    
+        if args.url_file:
+            file_text = FileLib.readFile(args.url_file)
+            url = file_text.split("\n")    
     crawlLevel = args.crawl
     only_download = args.only_download
     size = args.size
@@ -69,20 +63,20 @@ async def start_task():
 
     if mode == "markdown": 
         ###### markdown模式
-        translater = MarkdownTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
+        translater = MarkdownTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA,env_file=env_file)
         if clear_error_msg:
             translater.clearErrorMsg()
         translater.start(imageAction=ImageAction.MARK)
         translater.start()
     elif mode == "html":
         ###### html模式
-        translater = HtmlTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER)
+        translater = HtmlTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.CRAWLER,env_file=env_file)
         if clear_error_msg:
             translater.clearErrorMsg()
         await translater.start(size=size,only_download=only_download)
     elif mode == "json":
         ###### json模式
-        translater = JsonTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
+        translater = JsonTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA,env_file=env_file)
         if clear_error_msg:
             translater.clearErrorMsg()
         translater.start(size=size)
@@ -195,5 +189,19 @@ async def start_task():
     '''
 def main():
     asyncio.run(start_task()) 
+
+        
+# def fix():
+#     task = FileLib.loadJson("task.json")
+#     task1 = {}
+#     for id in task:
+#         print(id)
+#         url = task[id]["url"]
+#         url = url.replace(",","")
+#         task[id]["url"] = url
+#         md5 = HashLib.md5(url)
+#         task1[md5] = task[id]
+#     FileLib.dumpJson("task1.json",task1)
 if __name__ == "__main__":   
     main()
+    

@@ -15,8 +15,8 @@ from translate.utils.soup_utils import SoupLib
 from translate.utils.data_utils import JsonLib
 
 class JsonTranslater(Translater):
-    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
-        super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
+    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA,env_file=None):
+        super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction,env_file=env_file)
         self.langchainLib = LangchainLib()
     def get_chain(self):
         llm = self.langchainLib.get_chatopenai_llm(
@@ -43,7 +43,7 @@ class JsonTranslater(Translater):
         return chain
 
     def update_dictionary(self, origin_soup, target_soup,url_id,block_idx,mask_key="__m__"):
-        logger.debug(f"1. enter function")
+        logger.debug(f"1. enter function,url_id:{url_id},block_idx:{block_idx}")
         if SoupLib.compare_soup_structure(origin_soup,target_soup):
             origin_texts = SoupLib.find_all_text(origin_soup)
             target_texts = SoupLib.find_all_text(target_soup)
@@ -89,7 +89,8 @@ class JsonTranslater(Translater):
             else:
                 block_items.append(item)
                 length += item_len
-        
+        if block_items:
+            blocks.append(block_items.copy())
         path_dict = {}
         restruct_blocks=[]
         for block_items in blocks:
@@ -127,20 +128,40 @@ class JsonTranslater(Translater):
         if FileLib.existsFile(f"temp/{url_id}/json/source.json"):
             updates = FileLib.loadJson(f"temp/{url_id}/json/source.json")
             keep_dict = FileLib.loadJson(f"temp/{url_id}/json/keep_dict.json")
+            attribute_dict = FileLib.loadJson(f"temp/{url_id}/json/attribute_dict.json")
             path_dict = FileLib.loadJson(f"temp/{url_id}/json/path_dict.json")
             file_contents = FileLib.readFiles(f"temp/{url_id}/json","part_[0-9]*_en.html")
             blocks = [ item[1] for item in sorted(file_contents.items())]     
         else:
             updates=[]
             updates += JsonLib.find_key_value_path(json_data,"description") #descriptionLake
+            updates += JsonLib.find_key_value_path(json_data,"descriptionLake")
             updates += JsonLib.find_key_value_path(json_data,"x-result.[].message")
             updates += JsonLib.find_key_value_path(json_data,"x-result.[].action") #actionLake
+            updates += JsonLib.find_key_value_path(json_data,"x-result.[].actionLake")
             updates += JsonLib.find_key_value_path(json_data,"x-more") #x-more-lake
+            updates += JsonLib.find_key_value_path(json_data,"x-more-lake")
+            updates += JsonLib.find_key_value_path(json_data,"x-idempotencyDescription")
+            updates += JsonLib.find_key_value_path(json_data,"x-warning") #x-warning-lake
+            updates += JsonLib.find_key_value_path(json_data,"x-warning-lake")
+            updates += JsonLib.find_key_value_path(json_data,"x-range")
+            updates += JsonLib.find_key_value_path(json_data,"x-notAllowed")
+            
+            #过滤空字符串
+            updates = [item for item in updates if item["value"]]
+            #将每一个updates的value进行attribue hash
+            attribute_dict ={}
+            for item in updates:
+                soup = SoupLib.html2soup(item["value"])
+                attribute_dict.update(SoupLib.hash_attribute(soup))
+                item["value"] = SoupLib.soup2html(soup)
             
             keep_dict = {}
+            
             blocks,path_dict = self.split_json_and_replace_struct(updates,size)
             FileLib.dumpJson(f"temp/{url_id}/json/source.json",updates)
             FileLib.dumpJson(f"temp/{url_id}/json/keep_dict.json",keep_dict)
+            FileLib.dumpJson(f"temp/{url_id}/json/attribute_dict.json",attribute_dict)
             FileLib.dumpJson(f"temp/{url_id}/json/path_dict.json",path_dict)
             for idx,block in enumerate(blocks):
                 FileLib.writeFile(f"temp/{url_id}/json/part_{str(idx).zfill(3)}_en.html",block)
@@ -177,12 +198,17 @@ class JsonTranslater(Translater):
                         newBlocks.append(new_block)
                         pbar.update(1)
                     except Exception as e:
-                        traceback.print_exc()
                         logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                         raise e
         
         # soup = SoupLib.restore_block_with_dict(soup,keep_dict,"keep")
         new_updates = self.restore_struct_and_join_json(newBlocks,path_dict)
+
+        for item in new_updates:
+            soup = SoupLib.html2soup(item["value"])
+            SoupLib.unhash_attribute(soup,attribute_dict)
+            item["value"] = SoupLib.soup2html(soup)
+
         FileLib.dumpJson(f"temp/{url_id}/json/new_updates.json",new_updates)   
         resultJson = JsonLib.update_json_by_path(json_data,new_updates,lambda value:value)
         return resultJson
@@ -191,6 +217,7 @@ class JsonTranslater(Translater):
         logger.info(f"begin on {total} urls")
         startTime = time.time()
         chain = self.get_chain()
+        current_files =[]
         for index,url in enumerate(self.url):
             try:
                 id = HashLib.md5(url)
@@ -211,7 +238,7 @@ class JsonTranslater(Translater):
                     json_file = taskItem.get("json")
                     if json_file:
                         originJson = FileLib.loadJson(json_file,encoding="cp1252")
-                        if json_file:
+                        if originJson:
                             FileLib.dumpJson(f"{id}.json",originJson)
                         else:
                             continue
@@ -224,6 +251,7 @@ class JsonTranslater(Translater):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
                     resultJson = self.translate_json_text(id,chain,originJson,size=size)
                     FileLib.dumpJson(f"{id}_cn.json",resultJson)
+                    current_files.append(f"{id}_cn.json ---> {url}")
                 else:
                     resultJson = FileLib.loadJson(f"{id}_cn.json")
                 
@@ -233,5 +261,8 @@ class JsonTranslater(Translater):
                 taskItem["errorMsg"] = str(e)
                 logger.info(f"error on url={url},id={id},error={str(e)}")
                 #raise e
+            FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
+        
+        FileLib.writeFile("current_files.txt","\n".join(current_files))
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)
