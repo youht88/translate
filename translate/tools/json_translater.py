@@ -277,9 +277,10 @@ class JsonTranslater(Translater):
                 #raise e
             FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         
-        FileLib.writeFile("files_success.txt",success_files)
-        FileLib.writeFile("files_exists.txt",exists_files)
-        FileLib.writeFile("files_error.txt",error_files)
+
+        FileLib.writeFile("files_success.txt","\n".join(success_files))
+        FileLib.writeFile("files_exists.txt","\n".join(exists_files))
+        FileLib.writeFile("files_error.txt","\n".join(error_files))
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)
         logger.info("="*80)
