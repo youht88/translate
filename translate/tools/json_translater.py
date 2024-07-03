@@ -47,7 +47,7 @@ class JsonTranslater(Translater):
         for idx, target_element in enumerate(target_soup.find_all(lambda tag:tag.get("path") and tag.get("value"))):
             target_html = ''.join([str(item) for item in target_element.contents])
             logger.debug(f"4. idx: {idx},target_text : {target_html}")
-            if not re.match(f"{mask_key}=(.{{6}})",target_html):
+            if not re.findall(f"{mask_key}=(.{{6}})",target_html):
                 value_hash = target_element.get("value")
                 origin_html = origin_value_dict[value_hash]
                 logger.debug(f"5.1 hash={value_hash},url_id={url_id},block_idx={block_idx}")

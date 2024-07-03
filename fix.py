@@ -86,7 +86,10 @@ def main():
                 for ref in refs:
                      if len(url_ids)==0 or ref.get("url_id") in url_ids:
                          ref_info.append(f"{ref['url_id']}-{ref['block_idx']}")
-                if ref_info and (origin_text_pattern and re.match(origin_text_pattern,old_origin_text)):
+                match_origin_text = True
+                if origin_text_pattern:
+                    match_origin_text = bool(re.findall(origin_text_pattern,old_origin_text))
+                if ref_info and match_origin_text:
                     logging.info(f"字典hash:{dict_hash}")
                     logging.info(f"ref_url_ids:,{ref_info}")
                     logging.info(f"原文本:{old_target_text}")
@@ -108,7 +111,8 @@ def main():
                          ref_info.append(f"{ref['url_id']}-{ref['block_idx']}")
                 match_origin_text = True
                 if origin_text_pattern:
-                    match_origin_text = re.match(origin_text_pattern,old_origin_text)
+                    match_origin_text = bool(re.findall(origin_text_pattern,old_origin_text))
+                    
                 if ref_info and match_origin_text:                   
                     if not issubtext:
                         if old_target_text == dict_old_text:
@@ -121,7 +125,7 @@ def main():
                                 logging.info(f"新文本:{dict_new_text}")
                     else:
                         pattern = dict_old_text
-                        if re.match(pattern, old_target_text):
+                        if re.findall(pattern, old_target_text):
                             dict_hashs.append(dict_hash)
                             idx = len(dict_hashs)
                             if only_list:

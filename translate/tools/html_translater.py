@@ -44,7 +44,7 @@ class HtmlTranslater(Translater):
                 for idx, origin_text in enumerate(origin_texts):
                     target_text = target_texts[idx]
                     logger.debug(f"4. idx: {idx},target_text : {target_text}")
-                    if not re.match(f"{mask_key}=(.{{6}})",target_text):
+                    if not re.findall(f"{mask_key}=(.{{6}})",target_text):
                         hash = HashLib.md5(origin_text)[:6]
                         logger.debug(f"5.1 hash={hash},url_id={url_id},block_idx={block_idx}")
                         if not self.dictionary.get(hash):
