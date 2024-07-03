@@ -20,7 +20,7 @@ def main():
     fixDict_parser.add_argument("--old_text",required=False,help="字典中目标文本或者是所包含的文字片段正则表达式，这取决于--issubtext。注意：如果是文字片段正则表达式则应有足够的特征以避免大范围错误更新")
     fixDict_parser.add_argument("--new_text",required=True,help="如果指定字典的hash且--issubtext不为True，则--new_text应为完整的文本；如果指定或--old_text则--new_text指所对应的文字，这取决于--issubtext")
     fixDict_parser.add_argument("-l","--only_list", action="store_true",required=False, help="仅查看，不更改字典和删除文件")
-    fixDict_parser.add_argument("--url_ids", nargs="*",type=str,required=False, help="限定字典ref包含url_id的列表内容")
+    fixDict_parser.add_argument("--url_ids", nargs="*",type=str, help="限定字典ref包含url_id的列表内容")
     fixDict_parser.add_argument("--origin_text", type=str,required=False, help="限定字典原始值包含--origin_text正则")
  
     syncDict_parser = subparsers.add_parser("syncDict", help="同步字典")
@@ -53,7 +53,7 @@ def main():
         dict_old_text = args.old_text
         dict_new_text = args.new_text
         only_list = args.only_list
-        url_ids = args.url_ids
+        url_ids = args.url_ids if args.url_ids else []
         origin_text_pattern = args.origin_text
 
         if (dict_hash==None and dict_old_text==None) or (dict_hash!=None and dict_old_text!=None):
@@ -86,7 +86,7 @@ def main():
                 for ref in refs:
                      if len(url_ids)==0 or ref.get("url_id") in url_ids:
                          ref_info.append(f"{ref['url_id']}-{ref['block_idx']}")
-                if ref_info and re.match(origin_text_pattern,old_origin_text):
+                if ref_info and (origin_text_pattern and re.match(origin_text_pattern,old_origin_text)):
                     logging.info(f"字典hash:{dict_hash}")
                     logging.info(f"ref_url_ids:,{ref_info}")
                     logging.info(f"原文本:{old_target_text}")
@@ -95,6 +95,7 @@ def main():
             for dict_hash in dictionary:
                 dict_item = dictionary.get(dict_hash)
                 old_target_text = dict_item.get("target_text")
+                old_origin_text = dict_item.get("origin_text")
                 if mode=="json":
                     refs = dict_item.get("json_refs",[])
                 elif mode=="html":
@@ -105,7 +106,10 @@ def main():
                 for ref in refs:
                      if len(url_ids)==0 or ref.get("url_id") in url_ids:
                          ref_info.append(f"{ref['url_id']}-{ref['block_idx']}")
-                if ref_info and re.match(origin_text_pattern,old_origin_text):
+                match_origin_text = True
+                if origin_text_pattern:
+                    match_origin_text = re.match(origin_text_pattern,old_origin_text)
+                if ref_info and match_origin_text:                   
                     if not issubtext:
                         if old_target_text == dict_old_text:
                             dict_hashs.append(dict_hash)
@@ -235,4 +239,6 @@ if __name__ == "__main__":
     # python3 ../../fix.py --mode json fixDict --old_text "abcde" --new_text="ABCDE"
     # python3 ../../fix.py --mode json clearTask --url_id d2a41fe3fc36fe7e998e88623d2889a8 --blocks 1 3 5
     # python3 ../../fix.py --mode json fixDict --old_text "<.+>(.*消息由.*?)</.+>" --new_text "报文由报文头和报文正文组成。以下部 分专注于报文正文结构。报文头结构请参阅" --issubtext
+    # python3 ../../fix.py --mode json fixDict --old_text "<.+>(.*0s.*?)</.+>" --new_text "" --issubtext -l
+
     main()
