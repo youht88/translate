@@ -225,7 +225,9 @@ class JsonTranslater(Translater):
         logger.info(f"begin on {total} urls")
         startTime = time.time()
         chain = self.get_chain()
-        current_files =[]
+        success_files =[]
+        exists_files=[]
+        error_files=[]
         for index,url in enumerate(self.url):
             try:
                 id = HashLib.md5(url)
@@ -239,6 +241,7 @@ class JsonTranslater(Translater):
                     }
                     self.task[id] = taskItem
                 if taskItem.get('errorMsg'):
+                    error_files.append(f"{id}_cn.json ---> {url}")
                     logger.info(f"skip on url={url},id={id} ,because it is error ")
                     continue
                 if not os.path.exists(f"{id}.json"):
@@ -259,19 +262,34 @@ class JsonTranslater(Translater):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
                     resultJson = self.translate_json_text(id,chain,originJson,size=size)
                     FileLib.dumpJson(f"{id}_cn.json",resultJson)
-                    current_files.append(f"{id}_cn.json ---> {url}")
+                    success_files.append(f"{id}_cn.json ---> {url}")
                 else:
+                    exists_files.append(f"{id}_cn.json ---> {url}")
                     resultJson = FileLib.loadJson(f"{id}_cn.json")
                 
                 endTime = time.time() - startTime
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
+                error_files.append(f"{id}_cn.json ---> {url}")
                 taskItem["errorMsg"] = str(e)
                 logger.info(f"error on url={url},id={id},error={str(e)}")
                 traceback.print_exc()
                 #raise e
             FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         
-        FileLib.writeFile("current_files.txt","\n".join(current_files))
+        FileLib.writeFile("files_success.txt",success_files)
+        FileLib.writeFile("files_exists.txt",exists_files)
+        FileLib.writeFile("files_error.txt",error_files)
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)
+        logger.info("="*80)
+        files_str = '\n'.join(success_files)
+        logger.info(f"success_files:\n{files_str}")
+        files_str = '\n'.join(exists_files)
+        logger.info(f"exists_files:\n{files_str}")
+        files_str = '\n'.join(error_files)
+        logger.info(f"error_files:\n{files_str}")
+        logger.info("-"*50)
+        logger.info(f"本次任务共耗时:{round(endTime/60,2)}分钟。成功:{len(success_files)}条，已存在:{len(exists_files)}条，失败:{len(error_files)}条")
+        logger.info("="*80)
+        
