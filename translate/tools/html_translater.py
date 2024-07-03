@@ -57,7 +57,7 @@ class HtmlTranslater(Translater):
                         if self.dictionary.get(hash):
                             if url_id and block_idx:
                                 exits = False
-                                if not hasattr(self.dictionary[hash],"html_refs"):
+                                if "html_refs" not in self.dictionary[hash]:
                                     self.dictionary[hash]["html_refs"]=[]
                                 for item in self.dictionary[hash]["html_refs"]:
                                     if item["url_id"] == url_id and item["block_idx"]==block_idx:

@@ -198,6 +198,37 @@ class SoupLib():
             if new_text:
                 element.replace_with(f"{key}={hash}")
     @classmethod
+    def mask_html_with_dictionary(cls, soup, attrs: list[str], value_key = "value", dictionary={},key="__m__"):
+        #对于soup中所有含有全部attrs属性的元素，如果其value_key的hash值在dictionary中有值，则将该元素的内容mask为__m__=<value_hash>
+        def _hasattrs(tag):
+            has = True
+            for attr in attrs:
+                if not tag.get(attr):
+                    return False
+            return True
+        for idx,element in enumerate(soup.find_all(lambda tag: _hasattrs(tag))):
+            value_hash = element.attrs[value_key]
+            new_text = dictionary.get(value_hash,{}).get("target_text")
+            logger.debug(f"mask_html_with_dictionary---> idx={idx},value_hash={value_hash},bool(new_text)={bool(new_text)}")
+            if new_text:
+                element.string = f"{key}={value_hash}"
+    @classmethod
+    def unmask_html_with_dictionary(cls, soup, attrs:list[str],value_key = "value", dictionary={},key="__m__"):
+        def _hasattrs(tag):
+            has = True
+            for attr in attrs:
+                if not tag.get(attr):
+                    return False
+            return True
+        for element in soup.find_all(lambda tag: _hasattrs(tag)):
+            # 尝试替换文本
+            hashs = re.findall(f"{key}=(.{{6}})","".join([str(el) for el in element.contents]))
+            if hashs:
+                new_text = dictionary.get(hashs[0],{}).get("target_text")
+                if new_text:
+                    element.clear()
+                    element.append(SoupLib.html2soup(new_text))
+    @classmethod
     def unmask_text_with_dictionary(cls, soup, dictionary={},key="__m__"):
         for element in soup.find_all(text=True):
             if element.parent.name in ['[document]', 'html', 'body']:

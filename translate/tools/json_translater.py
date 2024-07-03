@@ -42,39 +42,40 @@ class JsonTranslater(Translater):
         chain = prompt | llm
         return chain
 
-    def update_dictionary(self, origin_soup, target_soup,url_id,block_idx,mask_key="__m__"):
+    def update_dictionary(self, origin_value_dict,target_soup,url_id,block_idx,mask_key="__m__"):
         logger.debug(f"1. enter function,url_id:{url_id},block_idx:{block_idx}")
-        if SoupLib.compare_soup_structure(origin_soup,target_soup):
-            origin_texts = SoupLib.find_all_text(origin_soup)
-            target_texts = SoupLib.find_all_text(target_soup)
-            logger.debug(f"2. compare soup structure")
-            if len(origin_texts) == len(target_texts):
-                logger.debug(f"3. length equal {len(origin_texts)}")
-                for idx, origin_text in enumerate(origin_texts):
-                    target_text = target_texts[idx]
-                    logger.debug(f"4. idx: {idx},target_text : {target_text}")
-                    if not re.match(f"{mask_key}=(.{{6}})",target_text):
-                        hash = HashLib.md5(origin_text)[:6]
-                        logger.debug(f"5.1 hash={hash},url_id={url_id},block_idx={block_idx}")
-                        if not self.dictionary.get(hash):
-                            self.dictionary[hash] = {"origin_text":origin_text,"target_text":target_text,"json_refs":[]}
-                            if url_id and block_idx:
-                                self.dictionary[hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})
-                    else:
-                        hash = re.findall(f"{mask_key}=(.{{6}})",target_text)[0]
-                        logger.debug(f"5.2 hash={hash},url_id={url_id},block_idx={block_idx}")
-                        if self.dictionary.get(hash):
-                            if url_id and block_idx:
-                                exits = False
-                                if not hasattr(self.dictionary[hash],"json_refs"):
-                                    self.dictionary[hash]["json_refs"]=[]
-                                for item in self.dictionary[hash]["json_refs"]:
-                                    if item["url_id"] == url_id and item["block_idx"]==block_idx:
-                                        exits = True
-                                logger.debug(f"6. url_id & block_idx is exists? {exits}")
-                                if not exits:
-                                    self.dictionary[hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})  
-
+        for idx, target_element in enumerate(target_soup.find_all(lambda tag:tag.get("path") and tag.get("value"))):
+            target_html = ''.join([str(item) for item in target_element.contents])
+            logger.debug(f"4. idx: {idx},target_text : {target_html}")
+            if not re.match(f"{mask_key}=(.{{6}})",target_html):
+                value_hash = target_element.get("value")
+                origin_html = origin_value_dict[value_hash]
+                logger.debug(f"5.1 hash={value_hash},url_id={url_id},block_idx={block_idx}")
+                if not self.dictionary.get(value_hash):
+                    self.dictionary[value_hash] = {"origin_text":origin_html,"target_text":target_html,"json_refs":[]}
+                    if url_id!=None and block_idx!=None:
+                        self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})
+                else:
+                    logger.debug(f"6????")
+            else:
+                value_hash = re.findall(f"{mask_key}=(.{{6}})",target_html)[0]
+                logger.debug(f"5.2 hash={value_hash},url_id={url_id},block_idx={block_idx}")
+                if self.dictionary.get(value_hash):
+                    logger.debug(f"5.3 ")
+                    if url_id!=None and block_idx!=None:
+                        logger.debug(f"5.4 ")
+                        exits = False
+                        if "json_refs" not in self.dictionary[value_hash]:
+                            logger.debug(f'5.5 关键错误{not hasattr(self.dictionary[value_hash],"json_refs")}')
+                            self.dictionary[value_hash]["json_refs"]=[]
+                        for item in self.dictionary[value_hash]["json_refs"]:
+                            logger.debug(f"5.6 item['url_id']:{item['url_id']},{url_id};item['block_idx']:{item['block_idx']},{block_idx}")
+                            if item["url_id"] == url_id and item["block_idx"]==block_idx:
+                                exits = True
+                        logger.debug(f"6. url_id & block_idx is exists? {exits}")
+                        if not exits:
+                            self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})  
+        FileLib.dumpJson("test.json",self.dictionary)
     def split_json_and_replace_struct(self, json_data_list, size) -> Tuple[List[str],dict]:
         length =0
         blocks=[]
@@ -92,31 +93,33 @@ class JsonTranslater(Translater):
         if block_items:
             blocks.append(block_items.copy())
         path_dict = {}
+        value_dict = {}
         restruct_blocks=[]
         for block_items in blocks:
-            restruct_block = None
             html = ""
             for block in block_items:
-                hash = HashLib.md5("/".join([str(item) for item in block["path"]]))[:6]
-                path_dict[hash] = block["path"]
-                html += f"<div hash={hash}>{block['value']}</div>"
+                path_hash = HashLib.md5("/".join([str(item) for item in block["path"]]))[:6]
+                path_dict[path_hash] = block["path"]
+                value_hash = HashLib.md5(block["value"])[:6]
+                value_dict[value_hash] = block["value"]
+                html += f"<div path={path_hash} value={value_hash}>{block['value']}</div>"
             restruct_blocks.append(html)
             #restruct_block = SoupLib.wrap_block_with_tag(SoupLib.html2soup(html,"html.parser"),"div")
             #restruct_blocks.append(restruct_block)              
-        return restruct_blocks,path_dict    
+        return restruct_blocks,path_dict,value_dict    
     def restore_struct_and_join_json(self,html_data_list:list[list[str]],path_dict:dict) -> List[dict]:
         # html_data_list example:
-        # ["<div hash="33b031"><p>abc</p> </div>
-        #   <div hash="33b032"><p>123</p> </div>",
-        #  "<div hash="33b033"><p>xyz</p> </div>
-        #   <div hash="33b034"><p>456</p> </div>",
+        # ["<div path="33b031"><p>abc</p> </div>
+        #   <div path="33b032"><p>123</p> </div>",
+        #  "<div path="33b033"><p>xyz</p> </div>
+        #   <div path="33b034"><p>456</p> </div>",
         # ]
         new_updates = []
         for html_data in html_data_list:
             soup_data = SoupLib.html2soup(html_data)
             contents = soup_data.contents
             for content in contents:
-                hash = content.attrs.get("hash")
+                hash = content.attrs.get("path")
                 if hash:
                     path = path_dict.get(hash)
                     if path:
@@ -130,6 +133,7 @@ class JsonTranslater(Translater):
             keep_dict = FileLib.loadJson(f"temp/{url_id}/json/keep_dict.json")
             attribute_dict = FileLib.loadJson(f"temp/{url_id}/json/attribute_dict.json")
             path_dict = FileLib.loadJson(f"temp/{url_id}/json/path_dict.json")
+            value_dict = FileLib.loadJson(f"temp/{url_id}/json/value_dict.json")
             file_contents = FileLib.readFiles(f"temp/{url_id}/json","part_[0-9]*_en.html")
             blocks = [ item[1] for item in sorted(file_contents.items())]     
         else:
@@ -158,11 +162,12 @@ class JsonTranslater(Translater):
             
             keep_dict = {}
             
-            blocks,path_dict = self.split_json_and_replace_struct(updates,size)
+            blocks,path_dict,value_dict = self.split_json_and_replace_struct(updates,size)
             FileLib.dumpJson(f"temp/{url_id}/json/source.json",updates)
             FileLib.dumpJson(f"temp/{url_id}/json/keep_dict.json",keep_dict)
             FileLib.dumpJson(f"temp/{url_id}/json/attribute_dict.json",attribute_dict)
             FileLib.dumpJson(f"temp/{url_id}/json/path_dict.json",path_dict)
+            FileLib.dumpJson(f"temp/{url_id}/json/value_dict.json",value_dict)
             for idx,block in enumerate(blocks):
                 FileLib.writeFile(f"temp/{url_id}/json/part_{str(idx).zfill(3)}_en.html",block)
         with tqdm(total= len(blocks)) as pbar:
@@ -175,7 +180,9 @@ class JsonTranslater(Translater):
                     try:
                         logger.debug(f"1. block:{block},index:{index}")
                         soup_block = SoupLib.html2soup(block)
-                        SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
+                        SoupLib.mask_html_with_dictionary(soup_block,attrs=["path","value"],value_key="value",dictionary = self.dictionary)
+                        #SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
+                        
                         #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
                         #logger.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
                         #FileLib.writeFile(f"temp/{url_id}/json/{index}.html",SoupLib.soup2html(soup_block))
@@ -190,8 +197,9 @@ class JsonTranslater(Translater):
                             new_soup_block = SoupLib.html2soup(content)
                         else:
                             new_soup_block = soup_block
-                        self.update_dictionary(soup_block,new_soup_block,url_id=url_id,block_idx=index)
-                        SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
+                        self.update_dictionary(value_dict,new_soup_block,url_id=url_id,block_idx=index)
+                        #SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
+                        SoupLib.unmask_html_with_dictionary(new_soup_block,attrs=["path","value"],value_key="value",dictionary=self.dictionary)
                         new_block = SoupLib.soup2html(new_soup_block)
                         #logger.debug(f"4. new_block:{new_block}")
                         FileLib.writeFile(f"temp/{url_id}/json/part_{str(index).zfill(3)}_cn.html",new_block)
@@ -260,6 +268,7 @@ class JsonTranslater(Translater):
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
                 logger.info(f"error on url={url},id={id},error={str(e)}")
+                traceback.print_exc()
                 #raise e
             FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         

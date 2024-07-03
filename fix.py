@@ -23,6 +23,8 @@ def main():
     clearTask_parser = subparsers.add_parser("cleartask", help="清除已完成的url翻译,以便重新翻译")
     clearTask_parser.add_argument("--url_hash",help="任务的url hash值(32位)")
     clearTask_parser.add_argument("--url", help="任务的url,如果同时指定了--ulr_hash则忽略此参数")
+    clearTask_parser.add_argument("-f","--url_file",type=str,help="包含一行或多行url的文件,指定--url或--url_hash时忽略此参数")
+    clearTask_parser.add_argument("--block",nargs="*",type=int,help="要删除的block index列表")
     clearTask_parser.add_argument("--only_final", default = False,help="仅删除最终的结果文件")
     
     args = parser.parse_args()
@@ -93,38 +95,50 @@ def main():
     elif args.command == "cleartask":
         url_hash = args.url_hash
         url = args.url
+        url_file = args.url_file
+        url_ids = []
+        block_idxs = args.block if args.block else []
         only_final = args.only_final
-        if not url and not url_hash:
-            logging.info("必须指定url_hash或者url!")
+        if not url and not url_hash and not url_file:
+            logging.info("必须指定url_hash或者url,或者url_file!")
             return
-        if url and not url_hash:
-            url_hash = HashLib.md5(url)    
+        if url_hash:
+            url_ids = [url_hash]
+        elif url:
+            url_hash = HashLib.md5(url)
+            url_ids = [url_hash]
+        else:
+            file_text = FileLib.readFile(url_file)
+            urls = file_text.split("\n")
+            url_ids = [HashLib.md5(url) for url in urls]    
         try:
-            FileLib.rmFile(f"{url_hash}_cn.{mode_fix}")
+            for url_id in url_ids:
+                FileLib.rmFile(f"{url_id}_cn.{mode_fix}")
             if only_final:
                 return
-            FileLib.rmdir(f"temp/{url_hash}/{mode}")
-            for dict_hash in dictionary:
-                dict_item = dictionary.get(dict_hash,{})
-                if mode=="json":
-                    refs = dict_item.get("json_refs",[])
-                elif mode=="html":
-                    refs = dict_item.get("html_refs",[])
-                else :
-                    refs = dict_item.get("markdown_refs",[])
-                new_refs = []
-                for ref in refs:
-                    ref_item_url_id = ref.get("url_id")
-                    if ref_item_url_id != url_hash:
-                        new_refs.append(ref)
-                #print(f"dict_hash:{dict_hash},url_hash:{url_hash},new_refs:{new_refs.copy()},")
-                refs = new_refs.copy() 
-                if mode=="json":
-                    dict_item["json_refs"] = refs
-                elif mode=="html":
-                    dict_item["html_refs"] = refs
-                else :
-                    dict_item["markdown_refs"] = refs       
+            for url_id in url_ids:
+                FileLib.rmdir(f"temp/{url_id}/{mode}")
+                for dict_hash in dictionary:
+                    dict_item = dictionary.get(dict_hash,{})
+                    if mode=="json":
+                        refs = dict_item.get("json_refs",[])
+                    elif mode=="html":
+                        refs = dict_item.get("html_refs",[])
+                    else :
+                        refs = dict_item.get("markdown_refs",[])
+                    new_refs = []
+                    for ref in refs:
+                        ref_item_url_id = ref.get("url_id")
+                        if ref_item_url_id != url_id:
+                            new_refs.append(ref)
+                    #print(f"dict_hash:{dict_hash},url_hash:{url_hash},new_refs:{new_refs.copy()},")
+                    refs = new_refs.copy() 
+                    if mode=="json":
+                        dict_item["json_refs"] = refs
+                    elif mode=="html":
+                        dict_item["html_refs"] = refs
+                    else :
+                        dict_item["markdown_refs"] = refs       
             FileLib.dumpJson("dictionary.json",dictionary) 
         except Exception as e:
             logging.info("清除任务失败!"+str(e)) 
