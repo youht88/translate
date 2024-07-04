@@ -19,13 +19,14 @@ class SoupLib():
         html = html.replace("<!DOCTYPE html>","")
         soup = BeautifulSoup(html, "html.parser")
         # 将标签外部的多个空白字符替换成一个空格
-        for element in soup.find_all(string=True):
-            if element.parent.name not in ['script', 'style']:  # 忽略 <script> 和 <style> 标签内的内容
-                element.replace_with(BeautifulSoup(" ".join(element.split()), 'html.parser'))
+        # for element in soup.find_all(string=True):
+        #     if element.parent.name not in ['script', 'style']:  # 忽略 <script> 和 <style> 标签内的内容
+        #         element.replace_with(BeautifulSoup(" ".join(element.split()), 'html.parser'))
         return soup
     @classmethod
     def soup2html(cls, soup):
-        return soup.prettify()
+        #return soup.prettify()
+        return soup.encode('utf-8').decode()
     @classmethod
     def replace_block_with_tag(cls, soup, tag_name="keep", selectors=[]):
         #为符合selectors(xpath)的元素(所有)替换位<tag_name hash=<hash of elem>></tag_name>

@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import os
 import textwrap
 
-from translate.utils.file_utils import FileLib
-from translate.utils.crypto_utils  import HashLib
-from translate.utils.image_utils import *
-from translate.utils.langchain_utils import LangchainLib
-from translate.llava import Llava
+from ylz_translate.utils.file_utils import FileLib
+from ylz_translate.utils.crypto_utils  import HashLib
+from ylz_translate.utils.image_utils import *
+from ylz_translate.utils.langchain_utils import LangchainLib
+from ylz_translate.llava import Llava
 import xml.etree.ElementTree as ET
 
 class ImageTranslater():

@@ -6,17 +6,18 @@ import re
 import time
 import os
 import textwrap
+import bs4
 
-from translate import Translater, MarkdonwAction, ImageAction
-from translate.utils.crypto_utils import HashLib
-from translate.utils.file_utils import FileLib
-from translate.utils.langchain_utils import LangchainLib
-from translate.utils.soup_utils import SoupLib
-from translate.utils.data_utils import JsonLib
+from ylz_translate import Translater, MarkdonwAction, ImageAction
+from ylz_translate.utils.crypto_utils import HashLib
+from ylz_translate.utils.file_utils import FileLib
+from ylz_translate.utils.langchain_utils import LangchainLib
+from ylz_translate.utils.soup_utils import SoupLib
+from ylz_translate.utils.data_utils import JsonLib
 
 class JsonTranslater(Translater):
-    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA,env_file=None):
-        super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction,env_file=env_file)
+    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
+        super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
         self.langchainLib = LangchainLib()
     def get_chain(self):
         llm = self.langchainLib.get_chatopenai_llm(
@@ -31,7 +32,15 @@ class JsonTranslater(Translater):
         #     temperature=0)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务及技术接口,擅长这些方面的技术文档的翻译。
     现在请将下面的HTML格式的英文文本全部翻译成中文,输出HTML文档,不要做任何解释。输出格式为```html ...```
-    要求:
+    请始终使用以下逗号分隔的术语对应列表进行翻译,（如果术语表的key与value一致则表示key的值保持原样）。术语对应表如下：
+    [message:报文,redirection URL:跳转链接,payment continuation URL:支付推进链接,reconstructed redirection URL:重构后的重定向链接,Alipay+ MPP:Alipay+ 支付方式,
+     Antom Dashboard:Antom Dashboard,secondary merchant:二级商户,acquirer:收单机构,URL scheme:URL scheme,access token:访问令牌,refresh token:刷新令牌,
+     signature:签名,private key:私钥,public key:公钥,vaulting:绑定,card vaulting:绑卡,co-badged card:双标卡,issuing bank:发卡行,capture:请款,the request traffic:请求流量,	
+     response header:响应头,response body:响应体,scope:作用域,idempotence:幂等性,anti-money laundering:反洗钱,purchase tracking:采购追踪,regulatory reporting:监管报告,
+     payment session data:支付会话数据,dispute:争议,chargeback:拒付,declare:海关报关,expiration time:有效期,default time:预设时间,asynchronous notification:异步通知,
+     API:接口,Antom:Antom,Alipay:Antom,Antom Merchant Portal:Antom Merchant Portal,Antom Dashboard:Antom Dashboard,Boolean:布尔属性,Integer:整数属性,array:数组]
+
+    特别要求:
         1、尽量理解标签结构及上下文，该翻译的尽量翻译，不要有遗漏,简单明了
         2、禁止翻译代码中的非注释内容
         3、表格中全部大写字母的为错误代码，禁止翻译
@@ -75,7 +84,7 @@ class JsonTranslater(Translater):
                         logger.debug(f"6. url_id & block_idx is exists? {exits}")
                         if not exits:
                             self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})  
-        FileLib.dumpJson("test.json",self.dictionary)
+        #FileLib.dumpJson("test.json",self.dictionary)
     def split_json_and_replace_struct(self, json_data_list, size) -> Tuple[List[str],dict]:
         length =0
         blocks=[]
@@ -119,9 +128,11 @@ class JsonTranslater(Translater):
             soup_data = SoupLib.html2soup(html_data)
             contents = soup_data.contents
             for content in contents:
-                hash = content.attrs.get("path")
-                if hash:
-                    path = path_dict.get(hash)
+                if type(content) == bs4.element.NavigableString and content.text=="\n":
+                    continue
+                content_hash = content.attrs.get("path")
+                if content_hash:
+                    path = path_dict.get(content_hash)
                     if path:
                         value = "".join([str(item) for item in content.contents])
                         new_updates.append({"value":value,"path":path})
@@ -228,6 +239,7 @@ class JsonTranslater(Translater):
         success_files =[]
         exists_files=[]
         error_files=[]
+        endTime = time.time() - startTime
         for index,url in enumerate(self.url):
             try:
                 id = HashLib.md5(url)
@@ -240,13 +252,13 @@ class JsonTranslater(Translater):
                         "markdownAction": str(self.markdownAction),
                     }
                     self.task[id] = taskItem
+                json_file = taskItem.get("json","")
                 if taskItem.get('errorMsg'):
-                    error_files.append(f"{id}_cn.json ---> {url}")
+                    error_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
                     logger.info(f"skip on url={url},id={id} ,because it is error ")
                     continue
                 if not os.path.exists(f"{id}.json"):
                     logger.info(f"没有发现json文件 url= {url},id={id} ...")
-                    json_file = taskItem.get("json")
                     if json_file:
                         originJson = FileLib.loadJson(json_file,encoding="cp1252")
                         if originJson:
@@ -262,15 +274,15 @@ class JsonTranslater(Translater):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
                     resultJson = self.translate_json_text(id,chain,originJson,size=size)
                     FileLib.dumpJson(f"{id}_cn.json",resultJson)
-                    success_files.append(f"{id}_cn.json ---> {url}")
+                    success_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
                 else:
-                    exists_files.append(f"{id}_cn.json ---> {url}")
+                    exists_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
                     resultJson = FileLib.loadJson(f"{id}_cn.json")
                 
                 endTime = time.time() - startTime
                 logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
-                error_files.append(f"{id}_cn.json ---> {url}")
+                error_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
                 taskItem["errorMsg"] = str(e)
                 logger.info(f"error on url={url},id={id},error={str(e)}")
                 traceback.print_exc()

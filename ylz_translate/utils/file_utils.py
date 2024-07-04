@@ -21,7 +21,7 @@ class FileLib():
                 json.dump(data,f,ensure_ascii=False,indent=4,sort_keys=True)
             logger.info(f"File saved to {filename}")
         except Exception as e:
-            logger.info(f"save {filename} error.")
+            logger.info(f"save {filename} error.{e}")
     @classmethod
     def writeFile(cls,filename,text,mode = "w"):
         # 保存文件

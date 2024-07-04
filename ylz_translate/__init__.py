@@ -16,10 +16,10 @@ from logger import logger
 
 import random
 
-from translate.utils.config_utils import Config
-from translate.utils.file_utils import FileLib
-from translate.utils.crypto_utils import HashLib
-from translate.utils.langchain_utils import *
+from ylz_translate.utils.config_utils import Config
+from ylz_translate.utils.file_utils import FileLib
+from ylz_translate.utils.crypto_utils import HashLib
+from ylz_translate.utils.langchain_utils import *
 
 from enum import Enum
 
@@ -34,13 +34,13 @@ class ImageAction(Enum):
 
 class Translater():
     def __init__(self,url:str|list[str]|None=None,dictionaryFilename="dictionary.json",
-                 taskFilename="task.json",crawlLevel=1,limit=10,markdownAction=MarkdonwAction.CRAWLER,env_file=None):
+                 taskFilename="task.json",crawlLevel=1,limit=10,markdownAction=MarkdonwAction.CRAWLER):
         self.markdownAction = markdownAction
         self.limit = limit
         self.crawlLevel = crawlLevel
         self.taskFilename = taskFilename
         self.imageTranslater = None
-        self.config = Config('translate',env_file)
+        self.config = Config.get()
         FileLib.mkdir("temp")
         if type(url)==list:
             self.url = url

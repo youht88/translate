@@ -5,16 +5,16 @@ import re
 from tqdm import tqdm
 import textwrap
 
-from translate.tools.image_translater import ImageTranslater
+from ylz_translate.tools.image_translater import ImageTranslater
 
-from translate import Translater, MarkdonwAction, ImageAction
-from translate.utils.file_utils import FileLib
-from translate.utils.crypto_utils import HashLib
-from translate.utils.langchain_utils import LangchainLib
+from ylz_translate import Translater, MarkdonwAction, ImageAction
+from ylz_translate.utils.file_utils import FileLib
+from ylz_translate.utils.crypto_utils import HashLib
+from ylz_translate.utils.langchain_utils import LangchainLib
 
 class MarkdownTranslater(Translater):
-    def __init__(self,url,crawlLevel=1, markdownAction=MarkdonwAction.JINA,env_file=None):
-        super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction,env_file=env_file)
+    def __init__(self,url,crawlLevel=1, markdownAction=MarkdonwAction.JINA):
+        super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction)
         self.langchainLib = LangchainLib()
     # translater = MarkdownTranslater(url= url,crawlLevel=1,markdownAction=MarkdonwAction.JINA)
     # translater.start()
