@@ -34,31 +34,39 @@ def syncDict(args):
             url_ids = [HashLib.md5(url) for url in urls]    
         try:
             error = False
+            dict_hashs = set(dictionary.keys())
             for url_id in url_ids:
                 if error:
                     logging.info("="*50)
                 error = False
-                #setp 1
-                miss_hashs = _check_valueHash_in_dict(url_id,mode,dictionary)
-                if len(miss_hashs)>0:
+                #step 1
+                miss_hashs_from_dict = _check_valueHash_from_dict(url_id,mode,dictionary)
+                if len(miss_hashs_from_dict)>0:
                     error = True
-                    logging.info(f"{Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{str(miss_hashs)}{Color.RESET}在字典中没有找到,请同步!")
-                #setp 2 
+                    logging.info(f"{Color.LGREEN}step1{Color.RESET} {Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{str(miss_hashs_from_dict)}{Color.RESET}在字典中没有找到,请同步!")
+                #step 2 
                 miss_block_refs = _check_block_in_ref(url_id,mode,dictionary)
                 if len(miss_block_refs)>0:
                     error = True
                     for miss_block_ref in miss_block_refs:
-                        logging.info(f"{Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{miss_block_ref['block_idx']}--{miss_block_ref['value_hash']}{Color.RESET}在字典ref中没有找到,请同步!")           
-                #setp 3
+                        logging.info(f"{Color.LGREEN}step2{Color.RESET} {Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{miss_block_ref['block_idx']}--{miss_block_ref['value_hash']}{Color.RESET}在字典ref中没有找到,请同步!")           
+                #step 3
                 miss_ref_blocks = _check_ref_in_block(url_id,mode,dictionary)
                 if len(miss_ref_blocks)>0:
                     error = True
                     for miss_ref_block in miss_ref_blocks:
-                        logging.info(f"{Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{miss_ref_block['block_idx']}--{miss_ref_block['value_hash']}{Color.RESET}在block中没有找到,请同步!")           
+                        logging.info(f"{Color.LGREEN}step3{Color.RESET} {Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{miss_ref_block['block_idx']}--{miss_ref_block['value_hash']}{Color.RESET}在block中没有找到,请同步!")           
+                #step 4
+                value_dict = FileLib.loadJson(f"temp/{url_id}/{mode}/value_dict.json")
+                dict_hashs = dict_hashs -  set(value_dict.keys())          
+            if len(dict_hashs)>0:       
+                error = True
+                logging.info(f"{Color.LGREEN}step4{Color.RESET} {mode}模式下{Color.LYELLOW}字典中的{str(dict_hashs)}{Color.RESET}在所有blocks中没有找到,请同步!")
+
         except Exception as e:
             logging.info("同步字典失败!"+str(e)) 
 
-def _check_valueHash_in_dict(url_id,mode,dictionary) -> list[str]:
+def _check_valueHash_from_dict(url_id,mode,dictionary) -> list[str]:
      # step1 查看url_id的所有dict_hash是否都在dictionary，如果不在指出缺失项
     miss_hashs=[]
     value_dict = FileLib.loadJson(f"temp/{url_id}/{mode}/value_dict.json")
