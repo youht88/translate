@@ -4,6 +4,7 @@ import re
 from ylz_translate.utils.file_utils import FileLib
 from ylz_translate.utils.crypto_utils import HashLib
 from ylz_translate.utils.soup_utils import SoupLib
+from ylz_translate.utils.data_utils import Color
 
 def _replaceSoupText(pattern,soup,replace_text=None) -> bool:
     string_elements = soup.find_all(string=True)
@@ -97,7 +98,7 @@ def fixDict(args):
             dict_item = dictionary.get(dict_hash)
             old_target_text = dict_item.get("target_text")
             old_origin_text = dict_item.get("origin_text")
-            shrinked_origin_text = old_origin_text.replace("\n","")
+            shrinked_origin_text = old_origin_text.replace("\n","").replace("\xa0","").replace("\xa3","")
                 
             if mode=="json":
                 refs = dict_item.get("json_refs",[])
@@ -124,11 +125,11 @@ def fixDict(args):
                     dict_hashs.append(dict_hash)
                     idx = len(dict_hashs)
                     if only_list:            
-                        logging.info(f"{idx}.字典hash:{dict_hash}")
-                        logging.info(f"ref_url_ids:{ref_info}")
-                        logging.info(f"原始文本:{shrinked_origin_text}")
-                        logging.info(f"旧目标文本:{old_target_text}")
-                        logging.info(f"新目标文本:{arg_new_text}\n")
+                        logging.info(f"{Color.YELLOW}{idx}.字典hash:{dict_hash}{Color.RESET}")
+                        logging.info(f"{Color.RED}ref_url_ids:{Color.RESET}{ref_info}")
+                        logging.info(f"{Color.GREEN}原始文本:{Color.RESET}{shrinked_origin_text}")
+                        logging.info(f"{Color.GREEN}旧目标文本:{Color.RESET}{old_target_text}")
+                        logging.info(f"{Color.GREEN}新目标文本:{Color.RESET}{arg_new_text}\n")
                 else:
                     arg_target_text_pattern = arg_old_text
                     if arg_target_text_pattern:
@@ -139,11 +140,11 @@ def fixDict(args):
                     dict_hashs.append(dict_hash)
                     idx = len(dict_hashs)
                     if only_list:
-                        logging.info(f"{idx}.字典hash:{dict_hash}")
-                        logging.info(f"ref_url_ids:{ref_info}")
-                        logging.info(f"原始文本:{shrinked_origin_text}")
-                        logging.info(f"旧目标文本:{sample_text}")
-                        logging.info(f"新目标文本:...{arg_new_text}...\n")
+                        logging.info(f"{Color.LYELLOW}{idx}.字典hash:{dict_hash}{Color.RESET}")
+                        logging.info(f"{Color.LRED}ref_url_ids:{Color.RESET}{ref_info}")
+                        logging.info(f"{Color.LGREEN}原始文本:{Color.RESET}{shrinked_origin_text}")
+                        logging.info(f"{Color.LGREEN}旧目标文本:{Color.RESET}{sample_text}")
+                        logging.info(f"{Color.LGREEN}新目标文本:{Color.RESET}...{arg_new_text}...\n")
 
         logging.info(f"找到{len(dict_hashs)}个字典hash\n{dict_hashs}")
         if only_list:

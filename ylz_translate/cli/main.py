@@ -36,9 +36,13 @@ def main():
     fixDict_parser.add_argument("--origin_text_pattern", type=str,required=False, help="限定字典中原文本片段的正则表达式")
  
     syncDict_parser = subparsers.add_parser("syncDict", help="同步字典")
-    syncDict_parser.add_argument("--dict_hash", required=True, help="字典的hash值(6位)")
+    syncDict_parser.add_argument("--url_id",help="任务的url id值(32位)")
+    syncDict_parser.add_argument("--url", help="任务的url,如果同时指定了--ulr_id则忽略此参数")
+    syncDict_parser.add_argument("-f","--url_file",type=str,help="包含一行或多行url的文件,指定--url或--url_id时忽略此参数")
+    syncDict_parser.add_argument("--dict_hash", help="字典的hash值(6位)")
+    syncDict_parser.add_argument("-l","--only_list", action="store_true",required=False, help="仅查看，不更改字典和删除文件")
     
-    clearTask_parser = subparsers.add_parser("clearTask", help="清除已完成的url翻译,以便重新翻译")
+    clearTask_parser = subparsers.add_parser("clearTask", help="清除已完成的翻译,以便重新翻译")
     clearTask_parser.add_argument("--url_id",help="任务的url id值(32位)")
     clearTask_parser.add_argument("--url", help="任务的url,如果同时指定了--ulr_id则忽略此参数")
     clearTask_parser.add_argument("-f","--url_file",type=str,help="包含一行或多行url的文件,指定--url或--url_id时忽略此参数")

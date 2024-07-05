@@ -3,6 +3,9 @@ import json
 import os
 import shutil
 import glob
+import re
+import yaml
+import logging
 
 class FileLib():
     @classmethod
@@ -11,7 +14,7 @@ class FileLib():
             with open(filename,"r",encoding=encoding) as f:
                 data = json.load(f)
         except Exception as e:
-            logger.info(f"{filename} error.")
+            logger.info(f"{filename} error.{e}")
             data = {}
         return data
     @classmethod
@@ -19,9 +22,9 @@ class FileLib():
         try:
             with open(filename,"w",encoding='utf8') as f:
                 json.dump(data,f,ensure_ascii=False,indent=4,sort_keys=True)
-            logger.info(f"File saved to {filename}")
+            logger.info(f"dump json {filename} success")
         except Exception as e:
-            logger.info(f"save {filename} error.{e}")
+            logger.info(f"dump json {filename} error.{e}")
     @classmethod
     def writeFile(cls,filename,text,mode = "w"):
         # 保存文件
@@ -34,7 +37,7 @@ class FileLib():
                     f.write(text)        
             logger.info(f"File saved to {filename}")
         except Exception as e:
-            logger.info(f"save {filename} error.")
+            logger.info(f"save {filename} error.{e}")
     @classmethod
     def readFile(cls,filename,mode = "r"):
         with open(filename,mode,encoding="utf8") as f:
@@ -65,7 +68,7 @@ class FileLib():
             shutil.rmtree(path,ignore_errors=True)
             logger.info(f"目录 {path} 已被删除.")
         except Exception as e:
-            logger.info(f"删除目录 {path} 失败.") 
+            logger.info(f"删除目录 {path} 失败.{e}") 
     @classmethod
     def readFiles(cls,dir,files_glob):
         # 返回文件的内容的字典，key为文件名
@@ -75,3 +78,25 @@ class FileLib():
         for filename in file_names:
             file_contents[filename] = cls.readFile(filename)
         return file_contents
+    @classmethod
+    def loadYaml(cls,filename):
+        content = cls.readFile(filename)
+
+        def replace_env_var(match):
+            env_var = match.group(1)
+            return os.getenv(env_var, f'${{{env_var}}}')  # 如果环境变量不存在，保留原样
+
+        # 使用正则表达式查找和替换 ${VAR} 格式的环境变量
+        content = re.sub(r'\$\{(\w+)\}', replace_env_var, content)
+
+        # 解析替换后的 YAML 内容
+        return yaml.safe_load(content)
+    
+    @classmethod
+    def dumpYaml(cls, filename, data):
+        try:
+            with open(filename, 'w') as f:
+                yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+            logging.info(f"dump yaml {filename} success.")        
+        except Exception as e:
+            logging.info(f"dump yaml {filename} error.{e}")

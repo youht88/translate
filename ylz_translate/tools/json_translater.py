@@ -259,13 +259,17 @@ class JsonTranslater(Translater):
                     continue
                 if not os.path.exists(f"{id}.json"):
                     logger.info(f"没有发现json文件 url= {url},id={id} ...")
+                    print("?"*20,"@",json_file,"@")
                     if json_file:
                         originJson = FileLib.loadJson(json_file,encoding="cp1252")
+                        print("!"*20,"@",json_file,"@")
                         if originJson:
                             FileLib.dumpJson(f"{id}.json",originJson)
                         else:
+                            error_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
                             continue
                     else:
+                        error_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
                         continue
                 else:
                     originJson = FileLib.loadJson(f"{id}.json")

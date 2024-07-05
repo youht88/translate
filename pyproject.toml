@@ -1,13 +1,20 @@
 [tool.poetry]
 name = "ylz-translate"
-version = "0.1.8"
+version = "0.1.12"
 description = "渐进式文档翻译系统"
 authors = ["toney88"]
 readme = "README.md"
-packages = [{include = "ylz_translate"}]
+
+[[tool.poetry.packages]]
+include = "ylz_translate"
+
+[[tool.poetry.packages]]
+include = "utils"
+from = "./ylz_translate"
 
 [tool.poetry.scripts]
-translate = "ylz_translate.cli.main:main"
+ylz_translate = "ylz_translate.cli.main:main"
+init_config = "ylz_translate.cli.copy_config:copy_config"
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -25,8 +32,9 @@ gradio-client = "^1.0.2"
 argparse = "^1.4.0"
 ipython = "^8.26.0"
 faiss-cpu = "^1.8.0.post1"
+pyyaml = "^6.0.1"
 
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core","setuptools"]
 build-backend = "poetry.core.masonry.api"

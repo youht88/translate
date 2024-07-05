@@ -16,6 +16,7 @@ def init(args):
         when="midnight",  # 每天午夜滚动
         interval=1,  # 滚动间隔为 1 天
         backupCount=7,  # 保留 7 天的日志文件
+        encoding='utf-8'
     )
     #file_handler = logging.FileHandler("task.log")
     #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
