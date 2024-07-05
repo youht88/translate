@@ -20,33 +20,42 @@ class JsonTranslater(Translater):
         super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
         self.langchainLib = LangchainLib()
     def get_chain(self):
+        together = self.config.get("LLM",{}).get("TOGETHER",{})
+        base_url = together.get("BASE_URL")
+        api_key= together.get("API_KEY"),
+        model= together.get("MODEL")
+        if ( not model ) or model=="${TOGETHER_MODEL}":
+            model = "Qwen/Qwen1.5-72B-Chat" 
+        if type(api_key) in [list,tuple]:
+            api_key = api_key[0]
         llm = self.langchainLib.get_chatopenai_llm(
-            base_url="https://api.together.xyz/v1",
-            api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
+            base_url= base_url,
+            api_key= api_key,
+            model= model,temperature=0)
         # llm = get_chatopenai_llm(
         #     api_key= self.config.get("LLM",{}).get("SILICONFLOW_API_KEY"),
         #     base_url="https://api.siliconflow.cn/v1",
         #     #model="alibaba/Qwen2-57B-A14B-Instruct",
         #     model="alibaba/Qwen1.5-110B-Chat",
         #     temperature=0)
-        systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务及技术接口,擅长这些方面的技术文档的翻译。
-    现在请将下面的HTML格式的英文文本全部翻译成中文,输出HTML文档,不要做任何解释。输出格式为```html ...```
-    请始终使用以下逗号分隔的术语对应列表进行翻译,（如果术语表的key与value一致则表示key的值保持原样）。术语对应表如下：
-    [message:报文,redirection URL:跳转链接,payment continuation URL:支付推进链接,reconstructed redirection URL:重构后的重定向链接,Alipay+ MPP:Alipay+ 支付方式,
-     Antom Dashboard:Antom Dashboard,secondary merchant:二级商户,acquirer:收单机构,URL scheme:URL scheme,access token:访问令牌,refresh token:刷新令牌,
-     signature:签名,private key:私钥,public key:公钥,vaulting:绑定,card vaulting:绑卡,co-badged card:双标卡,issuing bank:发卡行,capture:请款,the request traffic:请求流量,	
-     response header:响应头,response body:响应体,scope:作用域,idempotence:幂等性,anti-money laundering:反洗钱,purchase tracking:采购追踪,regulatory reporting:监管报告,
-     payment session data:支付会话数据,dispute:争议,chargeback:拒付,declare:海关报关,expiration time:有效期,default time:预设时间,asynchronous notification:异步通知,
-     API:接口,Antom:Antom,Alipay:Antom,Antom Merchant Portal:Antom Merchant Portal,Antom Dashboard:Antom Dashboard,Boolean:布尔属性,Integer:整数属性,array:数组]
+    #     systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务及技术接口,擅长这些方面的技术文档的翻译。
+    # 现在请将下面的HTML格式的英文文本全部翻译成中文,输出HTML文档,不要做任何解释。输出格式为```html ...```
+    # 请始终使用以下逗号分隔的术语对应列表进行翻译,（如果术语表的key与value一致则表示key的值保持原样）。术语对应表如下：
+    # [message:报文,redirection URL:跳转链接,payment continuation URL:支付推进链接,reconstructed redirection URL:重构后的重定向链接,Alipay+ MPP:Alipay+ 支付方式,
+    #  Antom Dashboard:Antom Dashboard,secondary merchant:二级商户,acquirer:收单机构,URL scheme:URL scheme,access token:访问令牌,refresh token:刷新令牌,
+    #  signature:签名,private key:私钥,public key:公钥,vaulting:绑定,card vaulting:绑卡,co-badged card:双标卡,issuing bank:发卡行,capture:请款,the request traffic:请求流量,	
+    #  response header:响应头,response body:响应体,scope:作用域,idempotence:幂等性,anti-money laundering:反洗钱,purchase tracking:采购追踪,regulatory reporting:监管报告,
+    #  payment session data:支付会话数据,dispute:争议,chargeback:拒付,declare:海关报关,expiration time:有效期,default time:预设时间,asynchronous notification:异步通知,
+    #  API:接口,Antom:Antom,Alipay:Antom,Antom Merchant Portal:Antom Merchant Portal,Antom Dashboard:Antom Dashboard,Boolean:布尔属性,Integer:整数属性,array:数组]
 
-    特别要求:
-        1、尽量理解标签结构及上下文，该翻译的尽量翻译，不要有遗漏,简单明了
-        2、禁止翻译代码中的非注释内容
-        3、表格中全部大写字母的为错误代码，禁止翻译
-        4、保持所有原始的HTML格式及结构
-        5、检查翻译的结果,以确保语句通顺
-    """
+    # 特别要求:
+    #     1、尽量理解标签结构及上下文，该翻译的尽量翻译，不要有遗漏,简单明了
+    #     2、禁止翻译代码中的非注释内容
+    #     3、表格中全部大写字母的为错误代码，禁止翻译
+    #     4、保持所有原始的HTML标签格式及结构，特别是<code>标签及其内容
+    #     5、检查翻译的结果,以确保语句通顺
+    # """
+        systemPromptText = self.config.get("PROMPT",{}).get("JSON_MODE")
         prompt = self.langchainLib.get_prompt(textwrap.dedent(systemPromptText))
         chain = prompt | llm
         return chain
