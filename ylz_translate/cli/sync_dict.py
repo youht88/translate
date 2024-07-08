@@ -115,7 +115,7 @@ def _check_ref_in_block(url_id,mode,dictionary) -> list[str]:
                         finded = True
                         break
                 if not finded:
-                    miss_ref_blocks.append({"block_idx":ref_block_idx,"value_hash":value_hash}) 
+                    miss_ref_blocks.append({"block_idx":ref_block_idx,"value_hash":dict_hash}) 
     return miss_ref_blocks
 '''
                 #删除对应的temp目录或对应cn文件
