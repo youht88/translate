@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import List, Dict, Any, Tuple
 import re
+from urllib.parse import urlparse, urlunparse
 
 class Color: 
     BLACK = '\033[30m'
@@ -29,6 +30,41 @@ class MathLib:
 
 class StringLib:
     pass
+
+class UrlLib:
+    @classmethod
+    def urlify(cls, address) -> tuple[str,str]:
+        address = address.strip()
+        # 解析URL
+        parsed_url = urlparse(address)
+
+        # 默认协议为 http
+        if not parsed_url.scheme:
+            address = 'http://' + address
+            parsed_url = urlparse(address)
+
+        # 判断地址类型
+        url_type = None
+        if parsed_url.scheme == 'file':
+            url_type = 'file'
+        elif parsed_url.scheme in ['http', 'https']:
+            url_type = 'web'
+        else:
+            url_type = 'unknown'
+
+        return address, url_type
+    
+    @classmethod
+    def strip_protocol(cls, url):
+        parsed_url = urlparse(url)
+        # 构建去掉协议的URL
+        stripped_url = parsed_url.netloc + parsed_url.path
+        if parsed_url.query:
+            stripped_url += '?' + parsed_url.query
+        if parsed_url.fragment:
+            stripped_url += '#' + parsed_url.fragment
+        return stripped_url
+
 
 class JsonLib:
     @classmethod

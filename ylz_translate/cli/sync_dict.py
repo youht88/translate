@@ -18,7 +18,7 @@ def syncDict(args):
         url = args.url
         url_file = args.url_file
         url_ids = []
-        only_list  = args.only_list
+        clear_step4  = args.clear_step4
         
         if not url and not url_id and not url_file:
             logging.info("必须指定url_id或者url,或者url_file!")
@@ -62,7 +62,11 @@ def syncDict(args):
             if len(dict_hashs)>0:       
                 error = True
                 logging.info(f"{Color.LGREEN}step4{Color.RESET} {mode}模式下{Color.LYELLOW}字典中的{str(dict_hashs)}{Color.RESET}在所有blocks中没有找到,请同步!")
-
+                if clear_step4:
+                    FileLib.dumpJson("dictionary.json.bak",dictionary)
+                    for dict_hash in dict_hashs:
+                        dictionary.pop(dict_hash)
+                    FileLib.dumpJson("dictionary.json",dictionary)
         except Exception as e:
             logging.info("同步字典失败!"+str(e)) 
 
@@ -117,38 +121,3 @@ def _check_ref_in_block(url_id,mode,dictionary) -> list[str]:
                 if not finded:
                     miss_ref_blocks.append({"block_idx":ref_block_idx,"value_hash":dict_hash}) 
     return miss_ref_blocks
-'''
-                #删除对应的temp目录或对应cn文件
-                if len(block_idxs)==0:
-                    FileLib.rmdir(f"temp/{url_id}/{mode}")
-                else:
-                    for block_idx in block_idxs:
-                        FileLib.rmFile(f"temp/{url_id}/{mode}/part_{str(block_idx).zfill(3)}_cn.html")   
-                #删除dictionary对应的refs
-                for dict_hash in dictionary:
-                    dict_item = dictionary.get(dict_hash,{})
-                    if mode=="json":
-                        refs = dict_item.get("json_refs",[])
-                    elif mode=="html":
-                        refs = dict_item.get("html_refs",[])
-                    else :
-                        refs = dict_item.get("markdown_refs",[])
-                    new_refs = []
-                    for ref in refs:
-                        ref_item_url_id = ref.get("url_id")
-                        ref_item_block_idx = ref.get("block_idx")
-                        if ref_item_url_id != url_id:
-                            new_refs.append(ref)
-                        else:
-                            if len(block_idxs)!=0 and (ref_item_block_idx not in block_idxs):
-                                new_refs.append(ref)
-                    refs = new_refs.copy() 
-                    if mode=="json":
-                        dict_item["json_refs"] = refs
-                    elif mode=="html":
-                        dict_item["html_refs"] = refs
-                    else :
-                        dict_item["markdown_refs"] = refs       
-                    
-            #FileLib.dumpJson("dictionary.json",dictionary) 
-'''        

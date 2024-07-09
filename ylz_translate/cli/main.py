@@ -40,14 +40,15 @@ def main():
     syncDict_parser.add_argument("--url", help="任务的url,如果同时指定了--ulr_id则忽略此参数")
     syncDict_parser.add_argument("-f","--url_file",type=str,help="包含一行或多行url的文件,指定--url或--url_id时忽略此参数")
     syncDict_parser.add_argument("--dict_hash", help="字典的hash值(6位)")
-    syncDict_parser.add_argument("-l","--only_list", action="store_true",required=False, help="仅查看，不更改字典和删除文件")
+    syncDict_parser.add_argument("--clear_step4", action="store_true",required=False, help="清除字典中无用的key")
     
     clearTask_parser = subparsers.add_parser("clearTask", help="清除已完成的翻译,以便重新翻译")
     clearTask_parser.add_argument("--url_id",help="任务的url id值(32位)")
     clearTask_parser.add_argument("--url", help="任务的url,如果同时指定了--ulr_id则忽略此参数")
     clearTask_parser.add_argument("-f","--url_file",type=str,help="包含一行或多行url的文件,指定--url或--url_id时忽略此参数")
     clearTask_parser.add_argument("--blocks",nargs="*",type=int,help="要删除的block index列表,如--blocks 1 3 5")
-    clearTask_parser.add_argument("--only_final", default = False,help="仅删除最终的结果文件")
+    clearTask_parser.add_argument("--only_final", action="store_true", default = False,help="仅删除最终的结果文件")
+    clearTask_parser.add_argument("--deep_clear", action="store_true", default = False,help="深度删除字典，当字典ref为空时也删除字典key")
 
     args = parser.parse_args()
     logging.info(str(args))

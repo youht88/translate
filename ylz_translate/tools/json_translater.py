@@ -13,7 +13,7 @@ from ylz_translate.utils.crypto_utils import HashLib
 from ylz_translate.utils.file_utils import FileLib
 from ylz_translate.utils.langchain_utils import LangchainLib
 from ylz_translate.utils.soup_utils import SoupLib
-from ylz_translate.utils.data_utils import JsonLib
+from ylz_translate.utils.data_utils import Color, JsonLib, UrlLib
 
 class JsonTranslater(Translater):
     def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
@@ -219,6 +219,12 @@ class JsonTranslater(Translater):
                         if SoupLib.find_all_text_without_mask(soup_block):
                             block_replaced = SoupLib.soup2html(soup_block)
                             logger.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
+                            # fix bug 为什么要剔除这个，不剔除语言模型必然出错，怪哉????
+                            block_replaced = block_replaced.replace("<!DOCTYPE lake>","")
+                            block_replaced = block_replaced.replace("&iexcl;&pound;","")
+                            logger.debug("="*80)
+                            logger.debug(block_replaced)
+                            logger.debug("="*80)
                             result = chain.invoke(
                                 {
                                     "input": block_replaced,
@@ -260,7 +266,7 @@ class JsonTranslater(Translater):
         exists_files=[]
         error_files=[]
         endTime = time.time() - startTime
-        for index,url in enumerate(self.url):
+        for index,url in enumerate(tqdm(self.url,desc=f"{Color.LYELLOW}总进度{Color.RESET}")):
             try:
                 id = HashLib.md5(url)
                 FileLib.mkdir(f"temp/{id}/json")
@@ -272,7 +278,12 @@ class JsonTranslater(Translater):
                         "markdownAction": str(self.markdownAction),
                     }
                     self.task[id] = taskItem
+                _,url_type = UrlLib.urlify(url)
+                if url_type=="file":
+                    json_file = UrlLib.strip_protocol(url)
+                    taskItem["json"] = json_file
                 json_file = taskItem.get("json","")
+
                 if taskItem.get('errorMsg'):
                     error_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
                     logger.info(f"skip on url={url},id={id} ,because it is error ")
