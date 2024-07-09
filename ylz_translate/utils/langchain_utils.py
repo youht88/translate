@@ -16,16 +16,21 @@ from langchain_community.embeddings import (
     HuggingFaceEmbeddings,
     HuggingFaceBgeEmbeddings,
 )
+from langchain_together import TogetherEmbeddings
 
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 from operator import itemgetter
 
 from gradio_client import Client,file
 import re
+
+from .config_utils import Config
 from .file_utils import FileLib
 import textwrap
 
 class LangchainLib():
+    def __init__(self):
+        self.config = Config.get()
     def get_opengpt4o_client(self,api_key):
         client = Client("KingNish/OpenGPT-4o")
         return client
@@ -158,28 +163,37 @@ class LangchainLib():
         restored_parts = [self.restore_blocks(part, scripts, 'SCRIPT') for part in restored_parts]
         
         return restored_parts
-    def get_bge_embedding(self):
-        embedding = HuggingFaceBgeEmbeddings()
+    def get_huggingface_embedding(self,mode="BGE"):
+        if mode=="BGE":
+            embedding = HuggingFaceBgeEmbeddings()
+        else:
+            embedding = HuggingFaceBgeEmbeddings()
         return embedding
-    
+
+    def get_together_embedding(self,api_key=None,model="BAAI/bge-large-en-v1.5"):
+        if not api_key:
+            api_key: str = self.config.get("LLM.TOGETHER.API_KEY")
+        print(api_key)
+        embedding = TogetherEmbeddings(api_key = api_key,model=model)
+        return embedding
+
     def get_faiss_vectorstore_from_db(self,db_file,embedding=None):
         if not embedding:
-            embedding = self.get_bge_embedding()
+            embedding = self.get_together_embedding()
         vectorstore = FAISS.load_local(db_file,embeddings=embedding,allow_dangerous_deserialization=True)
         return vectorstore
     
     def get_faiss_vectorstore_from_docs(self,docs,embedding=None) -> FAISS:
         if not embedding:
-            embedding = self.get_bge_embedding()
-        vectorstore = FAISS.from_documents(docs,embeddings=embedding)
+            embedding = self.get_together_embedding()
+        vectorstore = FAISS.from_documents(docs,embedding=embedding)
         return vectorstore
     def get_faiss_vectorstore_from_textes(self,textes,embedding=None) -> FAISS:
         if not embedding:
-            embedding = self.get_bge_embedding()
+            embedding = self.get_together_embedding()
         vectorstore = FAISS.from_texts(textes, embedding=embedding)
         return vectorstore
        
-    
     def faiss_save(self,db_file, vectorstore: FAISS,):
         vectorstore.save_local(db_file)
 
@@ -190,7 +204,7 @@ def main():
     langchainLib = LangchainLib()
     docs = [Document("I am a student")]
     vectorestore = langchainLib.get_faiss_vectorstore_from_docs(docs)
-    print(langchainLib.faiss.search("who are you?"))
+    print(langchainLib.faiss_search("who are you?",vectorestore))
     langchainLib.faiss_save("faiss.db",vectorestore)
 
 if __name__ == "__main__":
