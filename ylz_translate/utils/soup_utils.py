@@ -16,7 +16,7 @@ class SoupLib():
         res = re.findall(p,html,re.DOTALL)
         if res:
             html = res[0]
-        html = html.replace("<!DOCTYPE lake>","")
+        #html = html.replace("<!DOCTYPE lake>","")
         soup = BeautifulSoup(html, "html.parser")
         
         #soup = BeautifulSoup(html, "html5lib")

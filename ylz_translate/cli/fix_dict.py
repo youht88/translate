@@ -81,9 +81,9 @@ def fixDict(args):
         if (dict_hash_init==None and arg_old_text==None):
             logging.info("必须指定--dict_hash、--old_text和中至少的一个!")
             return
-        if len(arg_new_text)==0:
-            logging.info("请指定字典的hash所对应的--new_text!")
-            return
+        if not arg_new_text:
+            arg_new_text=""
+            logging.info(f"{Color.LRED}--new_text为空，请检查这是否合理!!!{Color.RESET}")
         if dict_hash_init!=None and issubtext==True:
             logging.info("字典hash模式下--issubtext必须为False!")
             return
@@ -129,7 +129,7 @@ def fixDict(args):
                         logging.info(f"{Color.RED}ref_url_ids:{Color.RESET}{ref_info}")
                         logging.info(f"{Color.GREEN}原始文本:{Color.RESET}{shrinked_origin_text}")
                         logging.info(f"{Color.GREEN}旧目标文本:{Color.RESET}{old_target_text}")
-                        logging.info(f"{Color.GREEN}新目标文本:{Color.RESET}{arg_new_text}\n")
+                        logging.info(f"{Color.GREEN}新目标文本:{Color.RESET}【{arg_new_text}】\n")
                 else:
                     arg_target_text_pattern = arg_old_text
                     if arg_target_text_pattern:
@@ -144,7 +144,7 @@ def fixDict(args):
                         logging.info(f"{Color.LRED}ref_url_ids:{Color.RESET}{ref_info}")
                         logging.info(f"{Color.LGREEN}原始文本:{Color.RESET}{shrinked_origin_text}")
                         logging.info(f"{Color.LGREEN}旧目标文本:{Color.RESET}{sample_text}")
-                        logging.info(f"{Color.LGREEN}新目标文本:{Color.RESET}...{arg_new_text}...\n")
+                        logging.info(f"{Color.LGREEN}新目标文本:{Color.RESET}...【{arg_new_text}】...\n")
 
         logging.info(f"找到{len(dict_hashs)}个字典hash\n{dict_hashs}")
         if only_list:

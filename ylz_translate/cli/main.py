@@ -30,7 +30,7 @@ def main():
     fixDict_parser.add_argument("--dict_hash", required=False, help="字典的hash值(6位)")
     fixDict_parser.add_argument("--issubtext", action="store_true",required=False, help="是否是部分文字片段")
     fixDict_parser.add_argument("--old_text",required=False,help="限定字典中目标文本或者所包含的文字片段正则表达式，这取决于--issubtext。注意：如果是文字片段正则表达式则应有足够的特征以避免大范围错误更新")
-    fixDict_parser.add_argument("--new_text",required=True,help="如果指定字典的hash且--issubtext不为True，则--new_text应为完整的文本；如果指定--old_text，则--new_text指所对应的文字，这取决于--issubtext")
+    fixDict_parser.add_argument("--new_text",required=False,help="如果指定字典的hash且--issubtext不为True，则--new_text应为完整的文本；如果指定--old_text，则--new_text指所对应的文字，这取决于--issubtext")
     fixDict_parser.add_argument("-l","--only_list", action="store_true",required=False, help="仅查看，不更改字典和删除文件")
     fixDict_parser.add_argument("--url_ids", nargs="*",type=str, help="限定字典ref包含url_id的列表内容")
     fixDict_parser.add_argument("--origin_text_pattern", type=str,required=False, help="限定字典中原文本片段的正则表达式")

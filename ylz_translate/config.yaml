@@ -40,3 +40,10 @@ JSON_KEYS:
     - x-moreCodes.[].codes.[].actionLake
     - x-moreCodes.[].codes.[].message
     - x-moreCodes.[].title
+
+JSON_KEEP:
+    - "<!DOCTYPE lake>"
+    - "<!doctype lake>"
+    - "&iexcl;"
+    - "&pound;"
+    - "&ordm;"

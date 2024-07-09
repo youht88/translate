@@ -7,6 +7,7 @@ import time
 import os
 import textwrap
 import bs4
+from bs4 import Doctype
 
 from ylz_translate import Translater, MarkdonwAction, ImageAction
 from ylz_translate.utils.crypto_utils import HashLib
@@ -146,7 +147,7 @@ class JsonTranslater(Translater):
                 if content_hash:
                     path = path_dict.get(content_hash)
                     if path:
-                        value = "".join([str(item) for item in content.contents])
+                        value = "".join([f"<!DOCTYPE {str(item)}>" if isinstance(item,Doctype) else str(item) for item in content.contents])
                         new_updates.append({"value":value,"path":path})
         return new_updates                    
     def translate_json_text(self,url_id,chain,json_data,size=1000):
@@ -191,7 +192,12 @@ class JsonTranslater(Translater):
                 item["value"] = SoupLib.soup2html(soup)
             
             keep_dict = {}
-            
+            json_keep = self.config.get("JSON_KEEP")
+            if not json_keep:
+                json_keep = []
+            for keep_item in json_keep:
+                keep_dict[HashLib.md5(keep_item)[:6]] = keep_item
+
             blocks,path_dict,value_dict = self.split_json_and_replace_struct(updates,size)
             FileLib.dumpJson(f"temp/{url_id}/json/source.json",updates)
             FileLib.dumpJson(f"temp/{url_id}/json/keep_dict.json",keep_dict)
@@ -218,19 +224,30 @@ class JsonTranslater(Translater):
                         #FileLib.writeFile(f"temp/{url_id}/json/{index}.html",SoupLib.soup2html(soup_block))
                         if SoupLib.find_all_text_without_mask(soup_block):
                             block_replaced = SoupLib.soup2html(soup_block)
-                            logger.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
                             # fix bug 为什么要剔除这个，不剔除语言模型必然出错，怪哉????
-                            block_replaced = block_replaced.replace("<!DOCTYPE lake>","")
-                            block_replaced = block_replaced.replace("&iexcl;&pound;","")
-                            logger.debug("="*80)
-                            logger.debug(block_replaced)
-                            logger.debug("="*80)
+                            # logger.info("?"*80)
+                            # logger.info(block_replaced)
+                            # logger.info("?"*80)
+                            
+                            for keep_key,keep_value in keep_dict.items():
+                                block_replaced = block_replaced.replace(keep_value,f"__##k={keep_key}##__")
+                            # logger.info("="*80)
+                            # logger.info(block_replaced)
+                            # logger.info("="*80)
+                            
+                            logger.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
                             result = chain.invoke(
                                 {
                                     "input": block_replaced,
                                 }
                             )
                             content = result.content
+                            for keep_key,keep_value in keep_dict.items():
+                                content = content.replace(f"__##k={keep_key}##__",keep_value)
+                            # logger.info("="*80)
+                            # logger.info(content)
+                            # logger.info("="*80)
+                            
                             new_soup_block = SoupLib.html2soup(content)
                         else:
                             new_soup_block = soup_block
@@ -248,7 +265,7 @@ class JsonTranslater(Translater):
         
         # soup = SoupLib.restore_block_with_dict(soup,keep_dict,"keep")
         new_updates = self.restore_struct_and_join_json(newBlocks,path_dict)
-
+        #FileLib.dumpJson(f"temp/{url_id}/json/new0_updates.json",new_updates)
         for item in new_updates:
             soup = SoupLib.html2soup(item["value"])
             SoupLib.unhash_attribute(soup,attribute_dict)
