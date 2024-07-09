@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ylz-translate"
-version = "0.1.21"
+version = "0.1.17"
 description = "渐进式文档翻译系统"
 authors = ["toney88"]
 readme = "README.md"
@@ -36,8 +36,6 @@ argparse = "^1.4.0"
 ipython = "^8.26.0"
 faiss-cpu = "^1.8.0.post1"
 pyyaml = "^6.0.1"
-html5lib = "^1.1"
-transformers = "^4.42.3"
 
 
 [build-system]

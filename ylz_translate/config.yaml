@@ -8,7 +8,7 @@ LLM:
 PROMPT:
     JSON_MODE: |
         你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务及技术接口,擅长这些方面的技术文档的翻译。
-        现在请将下面的HTML格式的英文文本全部翻译成中文,输出HTML文档,不要做任何解释。输出格式为```html ...``` 
+        现在请用符合中文阅读习惯的方式将下面的HTML格式的英文文本全部翻译成中文,输出HTML文档,不要做任何解释。输出格式为```html ...``` 
         请始终使用以下逗号分隔的术语对应列表进行翻译,（如果术语表的key与value一致则表示key的值保持原样）。术语对应表如下： 
         [message:报文,redirection URL:跳转链接,payment continuation URL:支付推进链接,reconstructed redirection URL:重构后的重定向链接,Alipay+ MPP:Alipay+ 支付方式, 
         Antom Dashboard:Antom Dashboard,secondary merchant:二级商户,acquirer:收单机构,URL scheme:URL scheme,access token:访问令牌,refresh token:刷新令牌, 
@@ -20,8 +20,9 @@ PROMPT:
             1、尽量理解标签结构及上下文，该翻译的尽量翻译，不要有遗漏,简单明了 
             2、禁止翻译代码中的非注释内容 
             3、表格中全部大写字母的为错误代码，禁止翻译 
-            4、保持所有原始的HTML标签格式及结构，特别是<code>标签及其内容。请保留所有`&amp;` 、`&nbsp;`、`&quot;`、`&apos;`等html实体引用的文字
-            5、检查翻译的结果,以确保语句通顺
+            4、保持所有原始的HTML标签格式及结构，特别是<code>、<strong>、<em>等语义标签要原含义一致，不要替换为其他标签
+            5、请保留所有`&amp;` 、`&nbsp;`、`&quot;`、`&apos;`等html实体引用的文字
+            6、检查翻译的结果,以确保语句通顺
 JSON_KEYS:
     - description
     - descriptionLake
@@ -35,3 +36,7 @@ JSON_KEYS:
     - x-warning-lake
     - x-range
     - x-notAllowed
+    - x-moreCodes.[].codes.[].action
+    - x-moreCodes.[].codes.[].actionLake
+    - x-moreCodes.[].codes.[].message
+    - x-moreCodes.[].title

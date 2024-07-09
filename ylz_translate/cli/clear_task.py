@@ -1,5 +1,6 @@
 import logging
 from ylz_translate.utils.crypto_utils import HashLib
+from ylz_translate.utils.data_utils import Color
 from ylz_translate.utils.file_utils import FileLib
 
 def clearTask(args):
@@ -18,6 +19,7 @@ def clearTask(args):
         url_ids = []
         block_idxs = args.blocks if args.blocks else []
         only_final = args.only_final
+        deep_clear = args.deep_clear
         if not url and not url_id and not url_file:
             logging.info("必须指定url_id或者url,或者url_file!")
             return
@@ -43,6 +45,7 @@ def clearTask(args):
                     for block_idx in block_idxs:
                         FileLib.rmFile(f"temp/{url_id}/{mode}/part_{str(block_idx).zfill(3)}_cn.html")   
                 #删除dictionary对应的refs
+                dict_pop_hash = []
                 for dict_hash in dictionary:
                     dict_item = dictionary.get(dict_hash,{})
                     if mode=="json":
@@ -60,13 +63,22 @@ def clearTask(args):
                         else:
                             if len(block_idxs)!=0 and (ref_item_block_idx not in block_idxs):
                                 new_refs.append(ref)
-                    refs = new_refs.copy() 
+                    refs = new_refs.copy()
                     if mode=="json":
                         dict_item["json_refs"] = refs
                     elif mode=="html":
                         dict_item["html_refs"] = refs
                     else :
-                        dict_item["markdown_refs"] = refs       
+                        dict_item["markdown_refs"] = refs
+                    
+                    if deep_clear:
+                        if len(refs)==0:
+                            dict_pop_hash.append(dict_hash)
+                    
+                if deep_clear:
+                    logging.info(f"将删除以下字典的以下hash:{Color.LYELLOW}{str(dict_pop_hash)}{Color.RESET}")
+                    for dic_hash in dict_pop_hash:
+                        dictionary.pop(dic_hash)
                     
             FileLib.dumpJson("dictionary.json",dictionary) 
         except Exception as e:

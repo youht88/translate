@@ -178,7 +178,7 @@ class LangchainLib():
             embedding = self.get_bge_embedding()
         vectorstore = FAISS.from_texts(textes, embedding=embedding)
         return vectorstore
-        
+       
     
     def faiss_save(self,db_file, vectorstore: FAISS,):
         vectorstore.save_local(db_file)
