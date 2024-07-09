@@ -20,5 +20,18 @@ PROMPT:
             1、尽量理解标签结构及上下文，该翻译的尽量翻译，不要有遗漏,简单明了 
             2、禁止翻译代码中的非注释内容 
             3、表格中全部大写字母的为错误代码，禁止翻译 
-            4、保持所有原始的HTML标签格式及结构，特别是<code>标签及其内容 
+            4、保持所有原始的HTML标签格式及结构，特别是<code>标签及其内容。请保留所有`&amp;` 、`&nbsp;`、`&quot;`、`&apos;`等html实体引用的文字
             5、检查翻译的结果,以确保语句通顺
+JSON_KEYS:
+    - description
+    - descriptionLake
+    - x-result.[].message
+    - x-result.[].action #actionLake
+    - x-result.[].actionLake
+    - x-more #x-more-lake
+    - x-more-lake
+    - x-idempotencyDescription
+    - x-warning #x-warning-lake
+    - x-warning-lake
+    - x-range
+    - x-notAllowed

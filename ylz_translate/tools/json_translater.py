@@ -20,12 +20,13 @@ class JsonTranslater(Translater):
         super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
         self.langchainLib = LangchainLib()
     def get_chain(self):
-        together = self.config.get("LLM",{}).get("TOGETHER",{})
-        base_url = together.get("BASE_URL")
-        api_key= together.get("API_KEY"),
-        model= together.get("MODEL")
-        if ( not model ) or model=="${TOGETHER_MODEL}":
-            model = "Qwen/Qwen1.5-72B-Chat" 
+        print("????",self.config)
+        base_url = self.config.get("LLM.TOGETHER.BASE_URL","https://api.together.xyz/v1")
+        api_key:str = self.config.get("LLM.TOGETHER.API_KEY"),
+        model= self.config.get("LLM.TOGETHER.MODEL","Qwen/Qwen1.5-72B-Chat")
+        print(type(model),model)
+        print(type(api_key),api_key)
+
         if type(api_key) in [list,tuple]:
             api_key = api_key[0]
         llm = self.langchainLib.get_chatopenai_llm(
@@ -55,7 +56,7 @@ class JsonTranslater(Translater):
     #     4、保持所有原始的HTML标签格式及结构，特别是<code>标签及其内容
     #     5、检查翻译的结果,以确保语句通顺
     # """
-        systemPromptText = self.config.get("PROMPT",{}).get("JSON_MODE")
+        systemPromptText = self.config.get("PROMPT.JSON_MODE")
         prompt = self.langchainLib.get_prompt(textwrap.dedent(systemPromptText))
         chain = prompt | llm
         return chain
@@ -94,22 +95,24 @@ class JsonTranslater(Translater):
                         if not exits:
                             self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})  
         #FileLib.dumpJson("test.json",self.dictionary)
-    def split_json_and_replace_struct(self, json_data_list, size) -> Tuple[List[str],dict]:
+    def split_json_and_replace_struct(self, json_data_list, size) -> Tuple[List[str],dict,dict]:
         length =0
         blocks=[]
         block_items=[]
         for item in json_data_list:
             item_len = len(item["value"])
+            #logger.info(f'{len(blocks)},{len(block_items)},{length},{size},{len(item["value"])},{"/".join([str(p) for p in item["path"]])}')
             if length + item_len > size:
                 blocks.append(block_items.copy())
-                length = 0
                 block_items=[]
                 block_items.append(item)
+                length = item_len
             else:
                 block_items.append(item)
                 length += item_len
         if block_items:
             blocks.append(block_items.copy())
+        
         path_dict = {}
         value_dict = {}
         restruct_blocks=[]
@@ -158,24 +161,31 @@ class JsonTranslater(Translater):
             blocks = [ item[1] for item in sorted(file_contents.items())]     
         else:
             updates=[]
-            updates += JsonLib.find_key_value_path(json_data,"description") #descriptionLake
-            updates += JsonLib.find_key_value_path(json_data,"descriptionLake")
-            updates += JsonLib.find_key_value_path(json_data,"x-result.[].message")
-            updates += JsonLib.find_key_value_path(json_data,"x-result.[].action") #actionLake
-            updates += JsonLib.find_key_value_path(json_data,"x-result.[].actionLake")
-            updates += JsonLib.find_key_value_path(json_data,"x-more") #x-more-lake
-            updates += JsonLib.find_key_value_path(json_data,"x-more-lake")
-            updates += JsonLib.find_key_value_path(json_data,"x-idempotencyDescription")
-            updates += JsonLib.find_key_value_path(json_data,"x-warning") #x-warning-lake
-            updates += JsonLib.find_key_value_path(json_data,"x-warning-lake")
-            updates += JsonLib.find_key_value_path(json_data,"x-range")
-            updates += JsonLib.find_key_value_path(json_data,"x-notAllowed")
+            json_keys = self.config.get("JSON_KEYS")
+            for json_key in json_keys:
+                updates += JsonLib.find_key_value_path(json_data,json_key)
+            # updates += JsonLib.find_key_value_path(json_data,"description") #descriptionLake
+            # updates += JsonLib.find_key_value_path(json_data,"descriptionLake")
+            # updates += JsonLib.find_key_value_path(json_data,"x-result.[].message")
+            # updates += JsonLib.find_key_value_path(json_data,"x-result.[].action") #actionLake
+            # updates += JsonLib.find_key_value_path(json_data,"x-result.[].actionLake")
+            # updates += JsonLib.find_key_value_path(json_data,"x-more") #x-more-lake
+            # updates += JsonLib.find_key_value_path(json_data,"x-more-lake")
+            # updates += JsonLib.find_key_value_path(json_data,"x-idempotencyDescription")
+            # updates += JsonLib.find_key_value_path(json_data,"x-warning") #x-warning-lake
+            # updates += JsonLib.find_key_value_path(json_data,"x-warning-lake")
+            # updates += JsonLib.find_key_value_path(json_data,"x-range")
+            # updates += JsonLib.find_key_value_path(json_data,"x-notAllowed")
             
             #过滤空字符串
             updates = [item for item in updates if item["value"]]
+                
             #将每一个updates的value进行attribue hash
             attribute_dict ={}
+            FileLib.dumpJson(f"temp/{url_id}/json/source1.json",updates)
             for item in updates:
+                #对于&lt;,&gt;转化为<>标签
+                item["value"] = item["value"].replace("&lt;","<").replace("&gt;",">")
                 soup = SoupLib.html2soup(item["value"])
                 attribute_dict.update(SoupLib.hash_attribute(soup))
                 item["value"] = SoupLib.soup2html(soup)
@@ -208,6 +218,7 @@ class JsonTranslater(Translater):
                         #FileLib.writeFile(f"temp/{url_id}/json/{index}.html",SoupLib.soup2html(soup_block))
                         if SoupLib.find_all_text_without_mask(soup_block):
                             block_replaced = SoupLib.soup2html(soup_block)
+                            logger.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
                             result = chain.invoke(
                                 {
                                     "input": block_replaced,

@@ -16,8 +16,11 @@ class SoupLib():
         res = re.findall(p,html,re.DOTALL)
         if res:
             html = res[0]
-        html = html.replace("<!DOCTYPE html>","")
+        html = html.replace("<!DOCTYPE lake>","")
         soup = BeautifulSoup(html, "html.parser")
+        
+        #soup = BeautifulSoup(html, "html5lib")
+        
         # 将标签外部的多个空白字符替换成一个空格
         # for element in soup.find_all(string=True):
         #     if element.parent.name not in ['script', 'style']:  # 忽略 <script> 和 <style> 标签内的内容
@@ -26,7 +29,7 @@ class SoupLib():
     @classmethod
     def soup2html(cls, soup):
         #return soup.prettify()
-        return soup.encode('utf-8').decode()
+        return soup.encode(formatter="html").decode('utf8')
     @classmethod
     def replace_block_with_tag(cls, soup, tag_name="keep", selectors=[]):
         #为符合selectors(xpath)的元素(所有)替换位<tag_name hash=<hash of elem>></tag_name>
