@@ -39,11 +39,17 @@ def syncDict(args):
                 if error:
                     logging.info("="*50)
                 error = False
-                #step 1
+                #step 1.1
                 miss_hashs_from_dict = _check_valueHash_from_dict(url_id,mode,dictionary)
                 if len(miss_hashs_from_dict)>0:
                     error = True
-                    logging.info(f"{Color.LGREEN}step1{Color.RESET} {Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{str(miss_hashs_from_dict)}{Color.RESET}在字典中没有找到,请同步!")
+                    logging.info(f"{Color.LGREEN}step1.1{Color.RESET} {Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{str(miss_hashs_from_dict)}{Color.RESET}在字典中没有找到,请同步!")
+                #step 1.2
+                miss_enblocks_inter_cnblocks = _check_enblocks_inter_cnblocks(url_id,mode,dictionary)
+                if len(miss_enblocks_inter_cnblocks)>0:
+                    error = True
+                    for miss_hash in miss_enblocks_inter_cnblocks:
+                        logging.info(f"{Color.LGREEN}step1.2{Color.RESET} {Color.LRED}{url_id}{Color.RESET}的{mode}模式下{Color.LYELLOW}{miss_hash['block_idx']}--{str(miss_hash['value_hashs'])}{Color.RESET}在en block中存在而在cn block丢失,请同步!")
                 #step 2 
                 miss_block_refs = _check_block_in_ref(url_id,mode,dictionary)
                 if len(miss_block_refs)>0:
@@ -71,12 +77,33 @@ def syncDict(args):
             logging.info("同步字典失败!"+str(e)) 
 
 def _check_valueHash_from_dict(url_id,mode,dictionary) -> list[str]:
-     # step1 查看url_id的所有dict_hash是否都在dictionary，如果不在指出缺失项
+     # step1.1 查看url_id的所有dict_hash是否都在dictionary，如果不在指出缺失项
     miss_hashs=[]
     value_dict = FileLib.loadJson(f"temp/{url_id}/{mode}/value_dict.json")
     for value_hash in value_dict:
         if value_hash not in dictionary:
             miss_hashs.append(value_hash)
+    return miss_hashs
+def _check_enblocks_inter_cnblocks(url_id,mode,dictionary) -> list[str]:
+     # step1.2 查看url_id的所有en blocks的hash是否都在对应的cn blocks中，如果不在指出缺失项
+    miss_hashs=[]
+    file_cn_contents = FileLib.readFiles(f"temp/{url_id}/{mode}","part_[0-9]*_cn.html")
+    cn_blocks = [ item[1] for item in sorted(file_cn_contents.items())]    
+    file_en_contents = FileLib.readFiles(f"temp/{url_id}/{mode}","part_[0-9]*_en.html")
+    en_blocks = [ item[1] for item in sorted(file_en_contents.items())]    
+    if len(en_blocks) != len(cn_blocks):
+        logging.info(f"{Color.LGREEN}step1.2{Color.RESET} {Color.LRED}{url_id}{Color.RESET}的blocks不完整,请重新生成")
+        return []
+    for block_idx ,en_block in enumerate(en_blocks):
+        en_soup_block = SoupLib.html2soup(en_block)
+        en_items = en_soup_block.find_all(lambda tag:tag.get("path") and tag.get("value"))
+        en_block_hashs = set([block_item.get("value") for block_item in en_items])
+        cn_soup_block = SoupLib.html2soup(cn_blocks[block_idx])
+        cn_items = cn_soup_block.find_all(lambda tag:tag.get("path") and tag.get("value"))
+        cn_block_hashs = set([block_item.get("value") for block_item in cn_items])
+        miss_block_hashs = en_block_hashs - cn_block_hashs
+        if len(miss_block_hashs)>0:
+            miss_hashs.append({"block_idx":block_idx,"value_hashs":miss_block_hashs})
     return miss_hashs
     
 def _check_block_in_ref(url_id,mode,dictionary) -> list[str]:

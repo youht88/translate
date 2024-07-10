@@ -8,6 +8,7 @@ from ylz_translate.cli.start import start
 from ylz_translate.cli.clear_task import clearTask
 from ylz_translate.cli.fix_dict import fixDict
 from ylz_translate.cli.sync_dict import syncDict
+from cli.display_result import displayResult
 
 def main():
     parser = argparse.ArgumentParser(description = "渐进式翻译系统")
@@ -50,9 +51,13 @@ def main():
     clearTask_parser.add_argument("--only_final", action="store_true", default = False,help="仅删除最终的结果文件")
     clearTask_parser.add_argument("--deep_clear", action="store_true", default = False,help="深度删除字典，当字典ref为空时也删除字典key")
 
+    displayResult_parser = subparsers.add_parser("display", help="显示文档，进行对照")
+    displayResult_parser.add_argument("--url_id",help="任务的url id值(32位)")
+    displayResult_parser.add_argument("--url", help="任务的url,如果同时指定了--ulr_id则忽略此参数")
+    displayResult_parser.add_argument("--blocks",nargs="*",type=int,help="要对比显示的block index列表,如--blocks 1 3 5")
+
     args = parser.parse_args()
-    logging.info(str(args))
-    
+
     init(args)
 
     if args.command == "start":
@@ -63,7 +68,8 @@ def main():
         syncDict(args)
     elif args.command == "clearTask":
         clearTask(args) 
-
+    elif args.command == "display":
+        displayResult(args)
 # python3 ../../fix.py --mode json fixDict --dict_hash b614b4 --new_text="一条消息由消息头和消息体组成。以下部分专注于消息体结构。有关消息头结 构，请参阅："
 # python3 ../../fix.py --mode json fixDict --old_text "abcde" --new_text="ABCDE"
 # python3 ../../fix.py --mode json clearTask --url_id d2a41fe3fc36fe7e998e88623d2889a8 --blocks 1 3 5

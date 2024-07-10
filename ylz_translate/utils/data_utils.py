@@ -1,4 +1,6 @@
 from enum import Enum
+import logging
+import textwrap
 from typing import List, Dict, Any, Tuple
 import re
 from urllib.parse import urlparse, urlunparse
@@ -29,7 +31,39 @@ class MathLib:
     pass
 
 class StringLib:
-    pass
+    def logging_in_box(text, char="=", console_width:int=80, print_func = logging.info):
+        """
+        将传入的字符串用“=”字符串框起来在console打印出来，支持多行文本，= 对齐，
+        并考虑了字符串在控制台中的实际显示宽度。
+
+        Args:
+            text: 要打印的字符串，可以包含多行。
+            console_width: 控制台的宽度，默认为 80 个字符。
+        """
+
+        lines = text.splitlines()
+
+        # 计算边框长度，考虑控制台宽度
+        max_line_length = max(len(line) for line in lines)
+        border_length = min(max_line_length + 4, console_width)
+
+        # 打印上边框
+        print_func(char * border_length)
+
+        for line in lines:
+            # 截断过长的行
+            wrapped_lines = textwrap.wrap(line, width=console_width - 4)
+
+            for wrapped_line in wrapped_lines:
+                # 计算需要填充的空格数
+                padding_space = border_length - len(wrapped_line) - 4
+                padding = " " * padding_space
+
+                # 打印带边框的文本行
+                print_func(f"{char} {wrapped_line}{padding} {char}")
+
+        # 打印下边框
+        print_func(char * border_length)
 
 class UrlLib:
     @classmethod

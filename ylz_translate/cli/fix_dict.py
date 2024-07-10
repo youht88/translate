@@ -83,7 +83,8 @@ def fixDict(args):
             return
         if not arg_new_text:
             arg_new_text=""
-            logging.info(f"{Color.LRED}--new_text为空，请检查这是否合理!!!{Color.RESET}")
+            only_list = True
+            logging.info(f"{Color.LRED}--new_text为空，请检查这是否合理,系统自动设置为查看模式以防止误操作!!!{Color.RESET}")
         if dict_hash_init!=None and issubtext==True:
             logging.info("字典hash模式下--issubtext必须为False!")
             return

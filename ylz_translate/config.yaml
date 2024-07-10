@@ -23,6 +23,7 @@ PROMPT:
             4、保持所有原始的HTML标签格式及结构，特别是<code>、<strong>、<em>等语义标签要原含义一致，不要替换为其他标签
             5、请保留所有`&amp;` 、`&nbsp;`、`&quot;`、`&apos;`等html实体引用的文字
             6、检查翻译的结果,以确保语句通顺
+            7、检查html格式确保所有标签正确闭合
 JSON_KEYS:
     - description
     - descriptionLake

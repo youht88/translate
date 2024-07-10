@@ -3,6 +3,7 @@ from logging.handlers import TimedRotatingFileHandler
 from logger import logger
 
 from ylz_translate.utils.config_utils import Config
+from ylz_translate.utils.data_utils import StringLib
 
 def init(args):
     # 设置logger
@@ -23,6 +24,9 @@ def init(args):
     formatter = logging.Formatter('%(asctime)s %(name)s [pid:%(process)d] [%(threadName)s] [%(levelname)s] %(message)s')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+
+    # looging
+    StringLib.logging_in_box(str(args),"*")
 
     #设置config
     Config.init("ylz_translate", args.env_file) 

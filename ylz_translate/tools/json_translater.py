@@ -14,7 +14,7 @@ from ylz_translate.utils.crypto_utils import HashLib
 from ylz_translate.utils.file_utils import FileLib
 from ylz_translate.utils.langchain_utils import LangchainLib
 from ylz_translate.utils.soup_utils import SoupLib
-from ylz_translate.utils.data_utils import Color, JsonLib, UrlLib
+from ylz_translate.utils.data_utils import Color, JsonLib, StringLib, UrlLib
 
 class JsonTranslater(Translater):
     def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
@@ -65,7 +65,7 @@ class JsonTranslater(Translater):
     def update_dictionary(self, origin_value_dict,target_soup,url_id,block_idx,mask_key="__m__"):
         logger.debug(f"1. enter function,url_id:{url_id},block_idx:{block_idx}")
         for idx, target_element in enumerate(target_soup.find_all(lambda tag:tag.get("path") and tag.get("value"))):
-            target_html = ''.join([str(item) for item in target_element.contents])
+            target_html = "".join([f"<!DOCTYPE {str(item)}>" if isinstance(item,Doctype) else str(item) for item in target_element.contents])
             logger.debug(f"4. idx: {idx},target_text : {target_html}")
             if not re.findall(f"{mask_key}=(.{{6}})",target_html):
                 value_hash = target_element.get("value")
@@ -94,6 +94,7 @@ class JsonTranslater(Translater):
                                 exits = True
                         logger.debug(f"6. url_id & block_idx is exists? {exits}")
                         if not exits:
+                            logger.debug(f"7. value_hash={value_hash},url_id = {url_id},block_idx={block_idx}")
                             self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})  
         #FileLib.dumpJson("test.json",self.dictionary)
     def split_json_and_replace_struct(self, json_data_list, size) -> Tuple[List[str],dict,dict]:
@@ -224,16 +225,12 @@ class JsonTranslater(Translater):
                         #FileLib.writeFile(f"temp/{url_id}/json/{index}.html",SoupLib.soup2html(soup_block))
                         if SoupLib.find_all_text_without_mask(soup_block):
                             block_replaced = SoupLib.soup2html(soup_block)
-                            # fix bug 为什么要剔除这个，不剔除语言模型必然出错，怪哉????
-                            # logger.info("?"*80)
-                            # logger.info(block_replaced)
-                            # logger.info("?"*80)
+                            #StringLib.logging_in_box(f"翻译前no keep:\n{block_replaced}",print_func=print)
                             
                             for keep_key,keep_value in keep_dict.items():
                                 block_replaced = block_replaced.replace(keep_value,f"__##k={keep_key}##__")
-                            # logger.info("="*80)
-                            # logger.info(block_replaced)
-                            # logger.info("="*80)
+ 
+                            #StringLib.logging_in_box(f"翻译前with keep:\n{block_replaced}",print_func=print)
                             
                             logger.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
                             result = chain.invoke(
@@ -244,9 +241,8 @@ class JsonTranslater(Translater):
                             content = result.content
                             for keep_key,keep_value in keep_dict.items():
                                 content = content.replace(f"__##k={keep_key}##__",keep_value)
-                            # logger.info("="*80)
-                            # logger.info(content)
-                            # logger.info("="*80)
+ 
+                            #StringLib.logging_in_box(f"翻译后no keep:\n{content}",print_func=print)
                             
                             new_soup_block = SoupLib.html2soup(content)
                         else:
