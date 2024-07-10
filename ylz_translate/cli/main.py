@@ -8,6 +8,7 @@ from ylz_translate.cli.start import start
 from ylz_translate.cli.clear_task import clearTask
 from ylz_translate.cli.fix_dict import fixDict
 from ylz_translate.cli.sync_dict import syncDict
+from cli.display_result import displayResult
 
 def main():
     parser = argparse.ArgumentParser(description = "渐进式翻译系统")
@@ -30,7 +31,7 @@ def main():
     fixDict_parser.add_argument("--dict_hash", required=False, help="字典的hash值(6位)")
     fixDict_parser.add_argument("--issubtext", action="store_true",required=False, help="是否是部分文字片段")
     fixDict_parser.add_argument("--old_text",required=False,help="限定字典中目标文本或者所包含的文字片段正则表达式，这取决于--issubtext。注意：如果是文字片段正则表达式则应有足够的特征以避免大范围错误更新")
-    fixDict_parser.add_argument("--new_text",required=True,help="如果指定字典的hash且--issubtext不为True，则--new_text应为完整的文本；如果指定--old_text，则--new_text指所对应的文字，这取决于--issubtext")
+    fixDict_parser.add_argument("--new_text",required=False,help="如果指定字典的hash且--issubtext不为True，则--new_text应为完整的文本；如果指定--old_text，则--new_text指所对应的文字，这取决于--issubtext")
     fixDict_parser.add_argument("-l","--only_list", action="store_true",required=False, help="仅查看，不更改字典和删除文件")
     fixDict_parser.add_argument("--url_ids", nargs="*",type=str, help="限定字典ref包含url_id的列表内容")
     fixDict_parser.add_argument("--origin_text_pattern", type=str,required=False, help="限定字典中原文本片段的正则表达式")
@@ -50,9 +51,14 @@ def main():
     clearTask_parser.add_argument("--only_final", action="store_true", default = False,help="仅删除最终的结果文件")
     clearTask_parser.add_argument("--deep_clear", action="store_true", default = False,help="深度删除字典，当字典ref为空时也删除字典key")
 
+    displayResult_parser = subparsers.add_parser("display", help="显示文档，进行对照")
+    displayResult_parser.add_argument("--url_id",help="任务的url id值(32位)")
+    displayResult_parser.add_argument("--url", help="任务的url,如果同时指定了--ulr_id则忽略此参数")
+    displayResult_parser.add_argument("--blocks",nargs="*",type=int,help="要对比显示的block index列表,如--blocks 1 3 5")
+    displayResult_parser.add_argument("--nocode", action="store_true", default = False,help="不显示源html,默认显示False")
+
     args = parser.parse_args()
-    logging.info(str(args))
-    
+
     init(args)
 
     if args.command == "start":
@@ -63,7 +69,8 @@ def main():
         syncDict(args)
     elif args.command == "clearTask":
         clearTask(args) 
-
+    elif args.command == "display":
+        displayResult(args)
 # python3 ../../fix.py --mode json fixDict --dict_hash b614b4 --new_text="一条消息由消息头和消息体组成。以下部分专注于消息体结构。有关消息头结 构，请参阅："
 # python3 ../../fix.py --mode json fixDict --old_text "abcde" --new_text="ABCDE"
 # python3 ../../fix.py --mode json clearTask --url_id d2a41fe3fc36fe7e998e88623d2889a8 --blocks 1 3 5
