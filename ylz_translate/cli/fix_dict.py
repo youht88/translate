@@ -78,10 +78,17 @@ def fixDict(args):
         arg_ref_url_ids = args.url_ids if args.url_ids else []
         arg_origin_text_pattern = args.origin_text_pattern
 
-        if (dict_hash_init==None and arg_old_text==None):
-            logging.info("必须指定--dict_hash、--old_text和中至少的一个!")
+        if (dict_hash_init==None and arg_old_text==None) or (dict_hash_init!=None and arg_old_text!=None):
+            logging.info("必须指定--dict_hash、--old_tex必须且只能指定一个!")
             return
-        if not arg_new_text:
+        
+        if dict_hash_init!=None and not arg_new_text:
+            if arg_ref_url_ids or arg_origin_text_pattern:
+                logging.info("删除字典hash模式下--url_ids和--origin_text_pattern无效！")
+                return
+            arg_new_text = ""
+            logging.info(f"{Color.LRED}该操作将删除{dict_hash_init}字典!!!{Color.RESET}")
+        if arg_old_text!=None and not arg_new_text:
             arg_new_text=""
             only_list = True
             logging.info(f"{Color.LRED}--new_text为空，请检查这是否合理,系统自动设置为查看模式以防止误操作!!!{Color.RESET}")
@@ -158,7 +165,8 @@ def fixDict(args):
                     return
                 old_target_text = dict_item.get("target_text")
                 if not issubtext:
-                    dict_item["target_text"] = arg_new_text
+                    if arg_new_text:
+                        dict_item["target_text"] = arg_new_text
                 else:
                     old_target_soup = SoupLib.html2soup(old_target_text)
                     isMatch, new_soup_html,_ = _replaceSoupText(arg_old_text,old_target_soup,arg_new_text)
@@ -180,6 +188,8 @@ def fixDict(args):
                         if ref_item_url_id!=None and ref_item_block_idx!=None:
                             FileLib.rmFile(f"temp/{ref_item_url_id}/{mode}/part_{str(ref_item_block_idx).zfill(3)}_cn.html")
                             FileLib.rmFile(f"{ref_item_url_id}_cn.{mode_fix}")            
+            if dict_hash_init!=None and not arg_new_text:
+                dictionary.pop(dict_hash_init)
             FileLib.dumpJson("dictionary.json",dictionary)
         except Exception as e:
             logging.info("更新字典失败!"+str(e))

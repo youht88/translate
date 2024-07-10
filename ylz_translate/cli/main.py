@@ -55,6 +55,7 @@ def main():
     displayResult_parser.add_argument("--url_id",help="任务的url id值(32位)")
     displayResult_parser.add_argument("--url", help="任务的url,如果同时指定了--ulr_id则忽略此参数")
     displayResult_parser.add_argument("--blocks",nargs="*",type=int,help="要对比显示的block index列表,如--blocks 1 3 5")
+    displayResult_parser.add_argument("--nocode", action="store_true", default = False,help="不显示源html,默认显示False")
 
     args = parser.parse_args()
 

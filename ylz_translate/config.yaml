@@ -24,6 +24,7 @@ PROMPT:
             5、请保留所有`&amp;` 、`&nbsp;`、`&quot;`、`&apos;`等html实体引用的文字
             6、检查翻译的结果,以确保语句通顺
             7、检查html格式确保所有标签正确闭合
+            8、不要处理__##k=开头的文字，这是保留文字
 JSON_KEYS:
     - description
     - descriptionLake
