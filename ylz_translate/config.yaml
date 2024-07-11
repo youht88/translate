@@ -1,10 +1,21 @@
 LLM:
     SILICONFLOW:
-        SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY}
+        API_KEYS: ${SILICONFLOW_API_KEYS}
+        BASE_URL: https://api.siliconflow.cn/v1
+        MODEL: ${SILICONFLOW_LLM_MODEL}
     TOGETHER: 
-        API_KEY: ${TOGETHER_API_KEY}
+        API_KEYS: ${TOGETHER_API_KEYS}
         BASE_URL: https://api.together.xyz/v1
-        MODEL: ${TOGETHER_MODEL}
+        MODEL: ${TOGETHER_LLM_MODEL}
+    GROQ:
+        API_KEYS: ${GROQ_API_KEYS}
+        BASE_URL: https://api.groq.com/openai/v1
+        MODEL: ${GROQ_LLM_MODEL}
+
+EMBEDDING:
+    TOGETHER: 
+        API_KEYS: ${TOGETHER_API_KEYS}
+        MODEL: ${TOGETHER_EMBEDDING_MODEL}
 PROMPT:
     JSON_MODE: |
         你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务及技术接口,擅长这些方面的技术文档的翻译。

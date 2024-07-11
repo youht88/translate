@@ -76,7 +76,8 @@ class Translater():
         self.dictionaryFilename = dictionaryFilename
         self.setCrawl()
         self.dictionary = FileLib.loadJson(dictionaryFilename)
-
+        self.langchainLib = LangchainLib()
+    
     def verify_args(self):
         assert True
     def get_chain(self):

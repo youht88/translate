@@ -33,10 +33,7 @@ class ImageTranslater():
         if self.check_content:
             self.llava = Llava() 
     def get_ocr_chain(self):
-        llm = self.langchainLib.get_chatopenai_llm(
-            base_url="https://api.together.xyz/v1",
-            api_key="api_key",
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
+        llm = self.langchainLib.get_llm()
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。现在将下面的英文文字翻译成中文
             要求:
             1.简单明了，任何情况下不要解释原因，只需要翻译原始内容
@@ -49,10 +46,7 @@ class ImageTranslater():
         chain = prompt | llm
         return chain
     def get_svg_chain(self):
-        llm = self.langchainLib.get_chatopenai_llm(
-            base_url="https://api.together.xyz/v1",
-            api_key="api_key",
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
+        llm = self.langchainLib.get_llm()
         systemPromptText = """以下单词或语句出自金融业务的流程图，请将其翻译成中文，
         要求：
         1.简单明了，任何情况下不要解释原因，只需要翻译原始内容

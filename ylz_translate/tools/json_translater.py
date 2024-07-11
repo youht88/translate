@@ -19,21 +19,17 @@ from ylz_translate.utils.data_utils import Color, JsonLib, StringLib, UrlLib
 class JsonTranslater(Translater):
     def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
         super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
-        self.langchainLib = LangchainLib()
     def get_chain(self):
-        print("????",self.config)
-        base_url = self.config.get("LLM.TOGETHER.BASE_URL","https://api.together.xyz/v1")
-        api_key:str = self.config.get("LLM.TOGETHER.API_KEY"),
-        model= self.config.get("LLM.TOGETHER.MODEL","Qwen/Qwen1.5-72B-Chat")
-        print(type(model),model)
-        print(type(api_key),api_key)
-
-        if type(api_key) in [list,tuple]:
-            api_key = api_key[0]
-        llm = self.langchainLib.get_chatopenai_llm(
-            base_url= base_url,
-            api_key= api_key,
-            model= model,temperature=0)
+        
+        llm = self.langchainLib.get_llm()
+        
+        #if type(api_key) in [list,tuple]:
+        #    api_key = api_key[0]
+        # llm = self.langchainLib.get_chatopenai_llm(
+        #     base_url= base_url,
+        #     api_key= api_token,
+        #     model= model,temperature=0)
+        
         # llm = get_chatopenai_llm(
         #     api_key= self.config.get("LLM",{}).get("SILICONFLOW_API_KEY"),
         #     base_url="https://api.siliconflow.cn/v1",

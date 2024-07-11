@@ -16,12 +16,12 @@ from ylz_translate.utils.langchain_utils import LangchainLib
 class HtmlTranslater(Translater):
     def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
         super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction)
-        self.langchainLib = LangchainLib()
     def get_chain(self):
-        llm = self.langchainLib.get_chatopenai_llm(
-            base_url="https://api.together.xyz/v1",
-            api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
+        llm = self.langchainLib.get_llm()
+        # llm = self.langchainLib.get_chatopenai_llm(
+        #     base_url="https://api.together.xyz/v1",
+        #     api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
+        #     model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。现在请将下面的markdown格式文档全部翻译成中文。
         注意:
           1、不要有遗漏,简单明了。

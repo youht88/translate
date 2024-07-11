@@ -15,23 +15,17 @@ from ylz_translate.utils.langchain_utils import LangchainLib
 class MarkdownTranslater(Translater):
     def __init__(self,url,crawlLevel=1, markdownAction=MarkdonwAction.JINA):
         super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction)
-        self.langchainLib = LangchainLib()
     # translater = MarkdownTranslater(url= url,crawlLevel=1,markdownAction=MarkdonwAction.JINA)
     # translater.start()
     # url为None，则根据self.taskFilename的任务执行
     # url为单个网址，则根据crawlLevel的层级获取url。其中为0表示当前网址，为1表示当前网页的一级链接，以此类推
     # url为网址数组，则忽略crawlLevel，与self.taskFilename的网址合并任务
     def get_chain(self):
-        # llm = get_chatopenai_llm(
+        llm = self.langchainLib.get_llm()
+        # llm = self.langchainLib.get_chatopenai_llm(
         #     base_url="https://api.together.xyz/v1",
         #     api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
-        #     model="meta-llama/Llama-3-8b-chat-hf",
-        #     temperature=0.2
-        #     )
-        llm = self.langchainLib.get_chatopenai_llm(
-            base_url="https://api.together.xyz/v1",
-            api_key= self.config.get("LLM",{}).get("TOGETHER_API_KEY"),
-            model="Qwen/Qwen1.5-72B-Chat",temperature=0)
+        #     model="Qwen/Qwen1.5-72B-Chat",temperature=0)
         systemPromptText = """你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务,擅长这些方面的技术文档的翻译。现在请将下面的markdown格式文档全部翻译成中文。
         注意:
           1、不要有遗漏,简单明了。
