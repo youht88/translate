@@ -8,7 +8,7 @@ from ylz_translate.cli.start import start
 from ylz_translate.cli.clear_task import clearTask
 from ylz_translate.cli.fix_dict import fixDict
 from ylz_translate.cli.sync_dict import syncDict
-from cli.display_result import displayResult
+from ylz_translate.cli.display_result import displayResult
 
 def main():
     parser = argparse.ArgumentParser(description = "渐进式翻译系统")
