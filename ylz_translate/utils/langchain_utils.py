@@ -3,18 +3,34 @@ from langchain_community.llms import Ollama
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 
+from langchain.docstore.document import Document
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from langchain.docstore.document import Document
+from markdownify import markdownify as MarkdownifyTransformer
+
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import (
+    HuggingFaceEmbeddings,
+    HuggingFaceBgeEmbeddings,
+)
+from langchain_together import TogetherEmbeddings
+
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
+from operator import itemgetter
 
 from gradio_client import Client,file
 import re
+
+from .config_utils import Config
 from .file_utils import FileLib
 import textwrap
 
 class LangchainLib():
+    def __init__(self):
+        self.config = Config.get()
     def get_opengpt4o_client(self,api_key):
         client = Client("KingNish/OpenGPT-4o")
         return client
@@ -69,6 +85,13 @@ class LangchainLib():
                 ]
             )
         return prompt
+
+    def get_textsplitter(self,chunk_size=1000,chunk_overlap=10):
+        text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=chunk_size, chunk_overlap=chunk_overlap
+            )
+        return text_splitter
+    
     def split_markdown_docs(self,text,chunk_size=1000,chunk_overlap=0):
             splited_result = self.split_text_with_protected_blocks(text,chunk_size=chunk_size,chunk_overlap=chunk_overlap)
             # Split
@@ -140,21 +163,65 @@ class LangchainLib():
         restored_parts = [self.restore_blocks(part, scripts, 'SCRIPT') for part in restored_parts]
         
         return restored_parts
+    def get_huggingface_embedding(self,mode="BGE"):
+        if mode=="BGE":
+            embedding = HuggingFaceBgeEmbeddings()
+        else:
+            embedding = HuggingFaceBgeEmbeddings()
+        return embedding
+
+    def get_together_embedding(self,api_key=None,model="BAAI/bge-large-en-v1.5"):
+        if not api_key:
+            api_key: str = self.config.get("LLM.TOGETHER.API_KEY")
+        print(api_key)
+        embedding = TogetherEmbeddings(api_key = api_key,model=model)
+        return embedding
+
+    def get_faiss_vectorstore_from_db(self,db_file,embedding=None):
+        if not embedding:
+            embedding = self.get_together_embedding()
+        vectorstore = FAISS.load_local(db_file,embeddings=embedding,allow_dangerous_deserialization=True)
+        return vectorstore
+    
+    def get_faiss_vectorstore_from_docs(self,docs,embedding=None) -> FAISS:
+        if not embedding:
+            embedding = self.get_together_embedding()
+        vectorstore = FAISS.from_documents(docs,embedding=embedding)
+        return vectorstore
+    def get_faiss_vectorstore_from_textes(self,textes,embedding=None) -> FAISS:
+        if not embedding:
+            embedding = self.get_together_embedding()
+        vectorstore = FAISS.from_texts(textes, embedding=embedding)
+        return vectorstore
+       
+    def faiss_save(self,db_file, vectorstore: FAISS,):
+        vectorstore.save_local(db_file)
+
+    def faiss_search(self,query,vectorstore: FAISS,k=10):
+        return vectorstore.similarity_search(query,k=k)
+
+def main():
+    langchainLib = LangchainLib()
+    docs = [Document("I am a student")]
+    vectorestore = langchainLib.get_faiss_vectorstore_from_docs(docs)
+    print(langchainLib.faiss_search("who are you?",vectorestore))
+    langchainLib.faiss_save("faiss.db",vectorestore)
 
 if __name__ == "__main__":
-        
+    main()
+    
     # markdown_text = readFile("./output1/605aeaf6963a5f13db36dd27533f9ebd.md")
     # split_result = split_text_with_protected_blocks(markdown_text)
     # for index,part in enumerate(split_result):
     #     writeFile(f"test-{index}.md",part)
     
     # 测试hf opengpt4o
-    langchainLib = LangchainLib()
-    client = langchainLib.get_opengpt4o_client("api_key")
-    prompt = """识别图片的类型，返回JSON格式：
-                {type:图片类型(流程图、架构图、界面图、其他}
-            """
-    result = langchainLib.opengpt4o_predict(client,
-                            prompt=textwrap.dedent(prompt),imageUrl=None)
-    print(result)
+    # langchainLib = LangchainLib()
+    # client = langchainLib.get_opengpt4o_client("api_key")
+    # prompt = """识别图片的类型，返回JSON格式：
+    #             {type:图片类型(流程图、架构图、界面图、其他}
+    #         """
+    # result = langchainLib.opengpt4o_predict(client,
+    #                         prompt=textwrap.dedent(prompt),imageUrl=None)
+    # print(result)
 
