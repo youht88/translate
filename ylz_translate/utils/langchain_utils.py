@@ -1,12 +1,14 @@
 import langchain
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 from langchain_community.llms import Ollama
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 
 from langchain.docstore.document import Document
 
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate,PromptTemplate
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -22,6 +24,13 @@ from langchain_together import TogetherEmbeddings
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
 from operator import itemgetter
 
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain.output_parsers import OutputFixingParser
+from langchain.output_parsers import RetryOutputParser
+
+from langchain_core.pydantic_v1 import BaseModel, Field, validator
+from typing import List,Literal
+
 from gradio_client import Client,file
 import re
 
@@ -30,6 +39,7 @@ from .file_utils import FileLib
 import textwrap
 import random
 import time
+from datetime import datetime
 
 class LangchainLib():
     llms:list = []
@@ -38,7 +48,7 @@ class LangchainLib():
         self.config = Config.get()
         self.regist_llm()
         self.regist_embedding()
-    def get_llm(self,key=None) -> dict:
+    def get_llm(self,key=None)->ChatOpenAI:
         if self.llms:
             if not key:
                 llms = self.llms
@@ -47,12 +57,19 @@ class LangchainLib():
             if llms:
                 llm = random.choice(llms)    
                 if not llm.get('llm'):
-                    llm['llm'] = ChatOpenAI(
-                        base_url=llm.get('base_url'),
-                        api_key= llm.get('api_key'),
-                        model= llm.get('model'),
-                        temperature= llm.get('temperature')
-                        )
+                    llm_type = llm.get('type')
+                    if llm_type == 'LLM.GEMINI':
+                        llm['llm'] = ChatGoogleGenerativeAI(
+                            google_api_key=llm.get('api_key'), 
+                            model=llm.get('model'),
+                            temperature= llm.get('temperature'))
+                    else:
+                        llm['llm'] = ChatOpenAI(
+                            base_url=llm.get('base_url'),
+                            api_key= llm.get('api_key'),
+                            model= llm.get('model'),
+                            temperature= llm.get('temperature')
+                            )
                 llm['used'] = llm.get('used',0) + 1 
                 llm['last_used'] = time.time()
                 return llm['llm'] 
@@ -63,7 +80,9 @@ class LangchainLib():
                    "LLM.SILICONFLOW":
                       {"model":"alibaba/Qwen1.5-110B-Chat","temperature":0},
                    "LLM.GROQ":
-                      {"model":"llama3-70b-8192","temperature":0}
+                      {"model":"llama3-70b-8192","temperature":0},
+                   "LLM.GEMINI":
+                      {"model":"gemini-pro","temperature":0}
                   }
         for key in defaults:
             default = defaults[key]
@@ -88,7 +107,7 @@ class LangchainLib():
                     "last_used": None 
                 })
         
-    def get_embedding(self,key=None) -> dict:
+    def get_embedding(self,key=None) :
         if self.embeddings:
             if not key:
                 embeddings = self.embeddings
@@ -124,12 +143,15 @@ class LangchainLib():
                 self.embeddings.append({
                     "embedding": None,
                     "type": key,
+                    "base_url": base_url,
                     "api_key":api_key,
                     "model":model,
                     "used":0,
                     "last_used": None 
                 })
-
+    def get_outputParser(self):
+        return StrOutputParser()
+    
     def get_opengpt4o_client(self,api_key):
         client = Client("KingNish/OpenGPT-4o")
         return client
@@ -172,17 +194,18 @@ class LangchainLib():
                 )
         return llm
 
-    def get_prompt(self,system_prompt):
-        prompt = ChatPromptTemplate.from_messages(
-                [
-                    
-                    (
-                        "system",
-                        system_prompt,
-                    ),
-                    ("human", "{input}"),
-                ]
-            )
+    def get_prompt(self,system_prompt=None,placeholder_key=None,human_keys={"input":""}) -> ChatPromptTemplate:
+        messages = []
+        if system_prompt:
+            messages.append(("system",system_prompt))
+        if placeholder_key:
+            messages.append(("placeholder", f"{{{placeholder_key}}}"))
+        if human_keys:
+            human_prompt = ""
+            for key in human_keys:
+                human_prompt += f"{human_keys[key]}:{{{key}}}\n"
+            messages.append(("human",human_prompt))
+        prompt = ChatPromptTemplate.from_messages(messages)
         return prompt
 
     def get_textsplitter(self,chunk_size=1000,chunk_overlap=10):
@@ -300,18 +323,93 @@ def main():
     # vectorestore = langchainLib.create_faiss_from_docs(docs)
     # langchainLib.save_faiss("faiss.db",vectorestore)
     
-    vectorestore = langchainLib.load_faiss("faiss.db")
-    print("v--->",langchainLib.search_faiss("I want to buy a table?",vectorestore,k=1))
+    #vectorestore = langchainLib.load_faiss("faiss.db")
+    #print("v--->",langchainLib.search_faiss("I want to buy a table?",vectorestore,k=1))
     
     # test llm from cache
     # for i in range(3):
-    #     res = langchainLib.get_llm("LLM.GROQ").invoke("hello")
+    #     llm = langchainLib.get_llm("LLM.GROQ")
+    #     res = llm.invoke("hello")
     #     print("res:",res)
     # print("llms:",[(item["type"],item["api_key"],item["used"]) for item in langchainLib.llms])
 
     # have bug when poetry add sentence_transformers   
     #v1 = langchainLib.get_huggingface_embedding()
     #print("huggingface BGE:",v1)
+
+    # ChatPromptTemplate
+    # prompt = langchainLib.get_prompt("hello",human_keys={"context":"关联的上下文","now":"当前时间为","question":"问题是"})
+    # prompt.partial(context="我的名字叫小美")   # 这个为什么不起作用?
+    # llm = langchainLib.get_llm("LLM.GROQ")
+    # outputParser = langchainLib.get_outputParser()
+
+    # chain = prompt | llm | outputParser
+    # res = chain.stream({"now":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),"question":"现在几点了","context":"我的名字叫小美"})
+    # for chunk in res:
+    #     print(chunk,end="")
+    
+    #print("\nllms:",[(item["type"],item["api_key"],item["used"]) for item in langchainLib.llms])
+    
+    # runnable
+    runnable1 = RunnableParallel(
+    passed=RunnablePassthrough(),
+    modified=lambda x: x["num"] + 1,
+    other = RunnableParallel(
+        passed=RunnablePassthrough(),
+        modified=lambda x: x["num"] * 2,
+        )
+    )
+    #runnable1.invoke({"num":1})
+    def f(x):
+        return x['modified']*100
+
+    runnable2 = runnable1 | RunnableParallel(
+        {"origin": RunnablePassthrough(),
+        "new1": lambda x: x["other"]["passed"],
+        "new2": RunnableLambda(f)}
+        )
+
+    #for trunck in runnable2.stream({"num": 1}):
+    #  print(trunck)
+    res = runnable2.invoke({"num": 1})
+    print("\nrunnalbe:",res)
+
+    # outpuparser
+    class Food(BaseModel):
+        name: str = Field(description="name of the food")
+        place: str = Field(defualt="未指定",description="where to eat food?",examples=["家","公司","体育馆"])
+        calories: float|None = Field(title="卡路里(千卡)",description="食物热量")
+        amount: tuple[float,str] = Field(description="tuple of the value and unit of the food amount")
+        time: str = Field(default = "未指定",description="the time of eating food,确保每个食物都有对应的时间，如果没有指定则为空字符串")
+        health: Literal["健康","不健康","未知"]|None = Field(description="根据常识判断食物是否为健康食品",examples=["健康","不健康","未知"])
+    class Foods(BaseModel):
+        foods: List[Food]
+
+    # Set up a parser + inject instructions into the prompt template.
+    parser = PydanticOutputParser(pydantic_object=Foods)
+
+    prompt = PromptTemplate(
+        template="用中文分析句子的内容。如果没有指定食物热量则根据食物的名称和数量进行估计。判断食物是否为健康\n{format_instructions}\n{command}\n",
+        input_variables=["command"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+
+    # And a query intended to prompt a language model to populate the data structure.
+    fixed_parser = OutputFixingParser.from_llm(parser=parser, llm=langchainLib.get_llm())
+    retry_parser = RetryOutputParser.from_llm(parser=parser, llm=langchainLib.get_llm())
+
+    chain = prompt | langchainLib.get_llm() | fixed_parser
+    retry_chain = RunnableParallel(
+        completion=chain, prompt_value=prompt,
+        ) | RunnableLambda(lambda x:retry_parser.parse_with_prompt(**x))
+
+    #output = chain.invoke({"command": "我今天在家吃了3个麦当劳炸鸡和一个焦糖布丁，昨天8点在电影院吃了一盘20千卡的西红柿炒蛋"})
+    output = chain.invoke({"command": "两个小时前吃了一根雪糕，还喝了一杯咖啡"})
+    #retry_parser.parse_with_prompt(output['completion'], output['prompt_value'])
+    #retry_parser.parse_with_prompt(output['completion'],output['prompt_value'])
+    print("\noutput parser:",output)
+
+    print("\nllms:",[(item["type"],item["api_key"],item["used"]) for item in langchainLib.llms])
 
 if __name__ == "__main__":
     main()

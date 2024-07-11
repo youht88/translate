@@ -11,6 +11,9 @@ LLM:
         API_KEYS: ${GROQ_API_KEYS}
         BASE_URL: https://api.groq.com/openai/v1
         MODEL: ${GROQ_LLM_MODEL}
+    GEMINI:
+        API_KEYS: ${GEMINI_API_KEYS}
+        MODEL: ${GEMINI_LLM_MODEL}
 
 EMBEDDING:
     TOGETHER: 
