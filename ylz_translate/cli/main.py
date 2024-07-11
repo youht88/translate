@@ -35,6 +35,7 @@ def main():
     fixDict_parser.add_argument("-l","--only_list", action="store_true",required=False, help="仅查看，不更改字典和删除文件")
     fixDict_parser.add_argument("--url_ids", nargs="*",type=str, help="限定字典ref包含url_id的列表内容")
     fixDict_parser.add_argument("--origin_text_pattern", type=str,required=False, help="限定字典中原文本片段的正则表达式")
+    fixDict_parser.add_argument("--clear", action="store_true" ,required=False, help="确定删除字典hash")
  
     syncDict_parser = subparsers.add_parser("syncDict", help="同步字典")
     syncDict_parser.add_argument("--url_id",help="任务的url id值(32位)")

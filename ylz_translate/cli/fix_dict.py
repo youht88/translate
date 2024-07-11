@@ -77,6 +77,7 @@ def fixDict(args):
         only_list = args.only_list
         arg_ref_url_ids = args.url_ids if args.url_ids else []
         arg_origin_text_pattern = args.origin_text_pattern
+        clear_dict_hash = args.clear
 
         if (dict_hash_init==None and arg_old_text==None) or (dict_hash_init!=None and arg_old_text!=None):
             logging.info("必须指定--dict_hash、--old_tex必须且只能指定一个!")
@@ -85,6 +86,9 @@ def fixDict(args):
         if dict_hash_init!=None and not arg_new_text:
             if arg_ref_url_ids or arg_origin_text_pattern:
                 logging.info("删除字典hash模式下--url_ids和--origin_text_pattern无效！")
+                return
+            if not clear_dict_hash:
+                logging.info("删除字典hash模式下必须指定--clear！")
                 return
             arg_new_text = ""
             logging.info(f"{Color.LRED}该操作将删除{dict_hash_init}字典!!!{Color.RESET}")
@@ -188,7 +192,7 @@ def fixDict(args):
                         if ref_item_url_id!=None and ref_item_block_idx!=None:
                             FileLib.rmFile(f"temp/{ref_item_url_id}/{mode}/part_{str(ref_item_block_idx).zfill(3)}_cn.html")
                             FileLib.rmFile(f"{ref_item_url_id}_cn.{mode_fix}")            
-            if dict_hash_init!=None and not arg_new_text:
+            if dict_hash_init!=None and clear_dict_hash:
                 dictionary.pop(dict_hash_init)
             FileLib.dumpJson("dictionary.json",dictionary)
         except Exception as e:
