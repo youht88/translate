@@ -11,12 +11,6 @@ import os
 
 def displayResult(args):
     mode = args.mode
-    if mode == "json":
-        mode_fix = "json"
-    elif mode == "html":
-        mode_fix = "html"
-    else:
-        mode_fix = "md"
     
     url_id = args.url_id
     url = args.url
@@ -32,9 +26,9 @@ def displayResult(args):
     output_html_path = "temp.html"
 
     # 读取文件内容
-    file_en_contents = FileLib.readFiles(f"temp/{url_id}/{mode_fix}","part_[0-9]*_en.html")
+    file_en_contents = FileLib.readFiles(f"temp/{url_id}/{mode}","part_[0-9]*_en.html")
     en_blocks_with_idx = [ (idx,item[1]) for idx,item in enumerate(sorted(file_en_contents.items())) if not block_idxes or idx in block_idxes]   
-    file_cn_contents = FileLib.readFiles(f"temp/{url_id}/{mode_fix}","part_[0-9]*_cn.html")
+    file_cn_contents = FileLib.readFiles(f"temp/{url_id}/{mode}","part_[0-9]*_cn.html")
     cn_blocks_with_idx = [ (idx,item[1]) for idx,item in enumerate(sorted(file_cn_contents.items())) if not block_idxes or idx in block_idxes]   
 
     # 创建合并后的 HTML 文件

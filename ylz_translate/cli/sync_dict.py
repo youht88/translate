@@ -7,12 +7,6 @@ from ylz_translate.utils.soup_utils import SoupLib
 def syncDict(args):
         dictionary = FileLib.loadJson("dictionary.json")
         mode = args.mode
-        if mode == "json":
-            mode_fix = "json"
-        elif mode == "html":
-            mode_fix = "html"
-        else:
-            mode_fix = "md"
         dict_hash = args.dict_hash    
         url_id = args.url_id
         url = args.url

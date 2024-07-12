@@ -112,12 +112,7 @@ def fixDict(args):
             old_origin_text = dict_item.get("origin_text")
             shrinked_origin_text = old_origin_text.replace("\n","").replace("\xa0","").replace("\xa3","")
                 
-            if mode=="json":
-                refs = dict_item.get("json_refs",[])
-            elif mode=="html":
-                refs = dict_item.get("html_refs",[])
-            else :
-                refs = dict_item.get("markdown_refs",[])
+            refs = dict_item.get(f"{mode}_refs",[])
             
             ref_info = []
             for ref in refs:
@@ -178,12 +173,7 @@ def fixDict(args):
                         dict_item["target_text"] = new_soup_html
                 #logging.info(f"将字典hash={dict_hash}的目标文字\n由【{old_target_text}】\n改为【{dict_item['target_text']}】\n原始文字为:【{shrink_origin_text}】")
 
-                if mode=="json":
-                    refs = dict_item.get("json_refs",[])
-                elif mode=="html":
-                    refs = dict_item.get("html_refs",[])
-                else :
-                    refs = dict_item.get("markdown_refs",[])
+                refs = dict_item.get(f"{mode}_refs",[])
                 for ref in refs:
                     ref_item_url_id = ref.get("url_id")
                     if len(arg_ref_url_ids)==0 or (ref_item_url_id in arg_ref_url_ids):

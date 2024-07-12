@@ -6,10 +6,12 @@ import logging
 import asyncio
 
 
+
 from ylz_translate import MarkdonwAction,ImageAction
 from ylz_translate.tools.markdown_translater import MarkdownTranslater
 from ylz_translate.tools.json_translater import JsonTranslater
 from ylz_translate.tools.html_translater import HtmlTranslater
+from ylz_translate.tools.lake_translater import LakeTranslater
 
 from ylz_translate.utils.file_utils import FileLib
 
@@ -26,7 +28,7 @@ async def start_task(args):
     size = args.size
     clear_error_msg = args.clear_error
 
-    if mode == "markdown": 
+    if mode == "md": 
         ###### markdown模式
         translater = MarkdownTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
         if clear_error_msg:
@@ -45,7 +47,13 @@ async def start_task(args):
         if clear_error_msg:
             translater.clearErrorMsg()
         translater.start(size=size)
-        
+    elif mode == "lake":
+        ###### lake模式
+        translater = LakeTranslater(url=url,crawlLevel=crawlLevel, markdownAction=MarkdonwAction.JINA)
+        if clear_error_msg:
+            translater.clearErrorMsg()
+        translater.start(size=size)
+    
 def start(args):
     asyncio.run(start_task(args)) 
 

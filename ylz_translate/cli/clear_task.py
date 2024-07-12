@@ -6,12 +6,6 @@ from ylz_translate.utils.file_utils import FileLib
 def clearTask(args):
         dictionary = FileLib.loadJson("dictionary.json")
         mode = args.mode
-        if mode == "json":
-            mode_fix = "json"
-        elif mode == "html":
-            mode_fix = "html"
-        else:
-            mode_fix = "md"
     
         url_id = args.url_id
         url = args.url
@@ -34,7 +28,7 @@ def clearTask(args):
             url_ids = [HashLib.md5(url) for url in urls]    
         try:
             for url_id in url_ids:
-                FileLib.rmFile(f"{url_id}_cn.{mode_fix}")
+                FileLib.rmFile(f"{url_id}_cn.{mode}")
             if only_final:
                 return
             for url_id in url_ids:
@@ -48,12 +42,7 @@ def clearTask(args):
                 dict_pop_hash = []
                 for dict_hash in dictionary:
                     dict_item = dictionary.get(dict_hash,{})
-                    if mode=="json":
-                        refs = dict_item.get("json_refs",[])
-                    elif mode=="html":
-                        refs = dict_item.get("html_refs",[])
-                    else :
-                        refs = dict_item.get("markdown_refs",[])
+                    refs = dict_item.get(f"{mode}_refs",[])
                     new_refs = []
                     for ref in refs:
                         ref_item_url_id = ref.get("url_id")
@@ -64,12 +53,7 @@ def clearTask(args):
                             if len(block_idxs)!=0 and (ref_item_block_idx not in block_idxs):
                                 new_refs.append(ref)
                     refs = new_refs.copy()
-                    if mode=="json":
-                        dict_item["json_refs"] = refs
-                    elif mode=="html":
-                        dict_item["html_refs"] = refs
-                    else :
-                        dict_item["markdown_refs"] = refs
+                    dict_item[f"{mode}_refs"] = refs
                     
                     if deep_clear:
                         if len(refs)==0:
