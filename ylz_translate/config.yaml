@@ -19,6 +19,9 @@ EMBEDDING:
     TOGETHER: 
         API_KEYS: ${TOGETHER_API_KEYS}
         MODEL: ${TOGETHER_EMBEDDING_MODEL}
+    GEMINI:
+        API_KEYS: ${GEMINI_API_KEYS}
+        MODEL: ${GEMINI_EMBEDDING_MODEL}
 PROMPT:
     JSON_MODE: |
         你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务及技术接口,擅长这些方面的技术文档的翻译。
