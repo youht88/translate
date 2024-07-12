@@ -1,5 +1,5 @@
 import logging
-import langchain
+import inspect
 from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -9,10 +9,12 @@ from langchain_community.llms import Ollama
 from langchain_core.messages import SystemMessage,HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 
+from langchain.memory import ConversationBufferMemory
+
 from langchain.docstore.document import Document
 
 from langchain_core.prompts import ChatPromptTemplate,PromptTemplate,SystemMessagePromptTemplate
-from langchain_core.prompt_values import StringPromptValue
+from langchain_core.prompt_values import StringPromptValue,ChatPromptValue
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -55,38 +57,40 @@ class LangchainLib():
         self.add_plugins()
         self.regist_llm()
         self.regist_embedding()
+        # 创建一个对话历史管理器
+        self.memory = ConversationBufferMemory()
 
     def add_plugins(self):
-        logging.info(f"增加ChatOpenAI.invoke的插件!!")
-        __invoke = ChatOpenAI.invoke
-        def __invoke_plug(self,*args,**kwargs):
-            text = args[0].text
-            args[0].text = f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}\n{text}"
-            return __invoke(self, *args, **kwargs)
-        ChatOpenAI.invoke = __invoke_plug
-        logging.info(f"增加ChatOpenAI.ainvoke的插件!!")
-        __ainvoke = ChatOpenAI.ainvoke
-        async def __ainvoke_plug(self,*args,**kwargs):
-            text = args[0].text
-            args[0].text = f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}\n{text}"
-            return await __ainvoke(self, *args, **kwargs)
-        ChatOpenAI.ainvoke = __ainvoke_plug
-        logging.info(f"增加ChatOpenAI.stream的插件!!")
-        __stream = ChatOpenAI.stream
-        def __stream_plug(self,*args,**kwargs):
-            text = args[0].text
-            args[0].text = f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}\n{text}"
-            print("!"*50,args[0].text)
-            return __stream(self, *args, **kwargs)
-        ChatOpenAI.stream = __stream_plug
-        #### astream每天有调试成功!!!!
-        # logging.info(f"增加ChatOpenAI.astream的插件!!")
-        # __astream = ChatOpenAI.astream
-        # async def __astream_plug(self,*args,**kwargs):
-        #     text = args[0].text
-        #     args[0].text = f"current_datetime:{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n{text}"
-        #     return await __astream(self, *args, **kwargs)
-        # ChatOpenAI.astream = __astream_plug
+        plugins = {"invoke":ChatOpenAI.invoke,
+                   "ainvoke":ChatOpenAI.ainvoke,
+                   "stream":ChatOpenAI.stream,
+                   "astream":ChatOpenAI.astream,
+            }
+        def get_wrapper(func):
+            logging.info(f"增加ChatOpenAI.{func.__name__}的插件!!")
+            def sync_wrapper(self, *args,**kwargs):
+                if isinstance(args[0],StringPromptValue):
+                    text = args[0].text
+                    args[0].text = f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}\n{text}"
+                elif isinstance(args[0],ChatPromptValue):
+                    chatPromptValue = args[0]
+                    chatPromptValue.messages.insert(0,SystemMessage(f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}"))
+                return func(self, *args, **kwargs)
+            async def async_wrapper(self, *args,**kwargs):
+                if isinstance(args[0],StringPromptValue):
+                    text = args[0].text
+                    args[0].text = f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}\n{text}"
+                elif isinstance(args[0],ChatPromptValue):
+                    chatPromptValue = args[0]
+                    chatPromptValue.messages.insert(0,SystemMessage(f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}"))
+                return await func(self, *args, **kwargs)
+            if  inspect.iscoroutinefunction(func):
+                return async_wrapper
+            else:
+                return sync_wrapper
+        for key in plugins:
+            func = plugins[key]
+            setattr(ChatOpenAI,key,get_wrapper(func))
 
     def get_llm(self,key=None, full=False,delay=10)->ChatOpenAI:
         if self.llms:
@@ -492,18 +496,22 @@ def __runnalble_test(langchainLib:LangchainLib):
 
 async def __prompt_test(langchainLib:LangchainLib):
 
-    prompt = langchainLib.get_prompt(f"你对日历时间非常精通",human_keys={"context":"关联的上下文","question":"问题是"},is_chat = False)
+    prompt = langchainLib.get_prompt(f"你对日历时间非常精通",human_keys={"context":"关联的上下文","question":"问题是"},is_chat = True)
     prompt.partial(context="我的名字叫小美")   # 这个为什么不起作用?
     llm = langchainLib.get_llm("LLM.TOGETHER")
     outputParser = langchainLib.get_outputParser()
     chain = prompt | llm | outputParser
 
-    res = await chain.ainvoke({"question":"我叫什么名字","context":"我是海涛"})
+    res = await chain.ainvoke({"question":"我叫什么名字，今天礼拜几","context":"我是海涛"})
     print(res)
-    res = chain.stream({"question":"下周三是几号","context":"我的名字叫小美"})
+    res = chain.stream({"question":"用我的名字写一周诗歌","context":"我的名字叫小美"})
     for chunk in res:
         print(chunk,end="")
     
+    prompt = PromptTemplate.from_template("用中文回答：{topic} 的{what}是多少")
+    chain = prompt | langchainLib.get_llm("LLM.GROQ") | outputParser
+    promise = chain.batch([{"topic":"中国","what":"人口"},{"topic":"美国","what":"国土面积"},{"topic":"新加坡","what":"大学"}])
+    print(promise)
     print("\n\nllms:",[(item["type"],item["api_key"],item["used"]) for item in langchainLib.llms])
 
 def __rag_test(langchainLib:LangchainLib):
@@ -524,6 +532,8 @@ def __rag_test(langchainLib:LangchainLib):
     # docs = [Document("I am a student"),Document("who to go to china"),Document("this is a table")]
     # vectorestore = langchainLib.create_faiss_from_docs(docs,embedding=embed)
     # langchainLib.save_faiss("faiss.db",vectorestore,index_name="gemini")
+async def __load_test(langchainLib:LangchainLib):
+    pass
 
 async def main():
     langchainLib = LangchainLib()
@@ -533,6 +543,9 @@ async def main():
     StringLib.logging_in_box(f"\n{Color.YELLOW} 测试prompt {Color.RESET}")
     await __prompt_test(langchainLib)    
     
+    StringLib.logging_in_box(f"\n{Color.YELLOW} 测试loader {Color.RESET}")
+    await __load_test(langchainLib)    
+
     # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试runnable {Color.RESET}")
     # __runnalble_test(langchainLib)
     
