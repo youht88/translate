@@ -21,7 +21,7 @@ class LakeTranslater(Translater):
         super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
     def get_chain(self):        
         llm = self.langchainLib.get_llm("LLM.TOGETHER")
-        systemPromptText = self.config.get("PROMPT.JSON_MODE")
+        systemPromptText = self.config.get("PROMPT.LAKE_MODE")
         prompt = self.langchainLib.get_prompt(textwrap.dedent(systemPromptText))
         #outputParser = self.langchainLib.get_outputParser()
         chain = prompt | llm
@@ -29,7 +29,7 @@ class LakeTranslater(Translater):
 
     def update_dictionary(self, origin_value_dict,target_soup,url_id,block_idx,mask_key="__m__"):
         logger.debug(f"1. enter function,url_id:{url_id},block_idx:{block_idx}")
-        for idx, target_element in enumerate(target_soup.find_all(lambda tag:tag.get("path") and tag.get("value"))):
+        for idx, target_element in enumerate(target_soup.find_all(lambda tag:tag.get("t") and tag.get("value"))):
             target_html = "".join([f"<!DOCTYPE {str(item)}>" if isinstance(item,Doctype) else str(item) for item in target_element.contents])
             logger.debug(f"4. idx: {idx},target_text : {target_html}")
             if not re.findall(f"{mask_key}=(.{{6}})",target_html):
@@ -37,11 +37,9 @@ class LakeTranslater(Translater):
                 origin_html = origin_value_dict[value_hash]
                 logger.debug(f"5.1 hash={value_hash},url_id={url_id},block_idx={block_idx}")
                 if not self.dictionary.get(value_hash):
-                    self.dictionary[value_hash] = {"origin_text":origin_html,"target_text":target_html,"json_refs":[]}
+                    self.dictionary[value_hash] = {"origin_text":origin_html,"target_text":target_html,"lake_refs":[]}
                     if url_id!=None and block_idx!=None:
-                        self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})
-                else:
-                    logger.debug(f"6????")
+                        self.dictionary[value_hash]["lake_refs"].append({"url_id":url_id,"block_idx":block_idx})
             else:
                 value_hash = re.findall(f"{mask_key}=(.{{6}})",target_html)[0]
                 logger.debug(f"5.2 hash={value_hash},url_id={url_id},block_idx={block_idx}")
@@ -50,78 +48,27 @@ class LakeTranslater(Translater):
                     if url_id!=None and block_idx!=None:
                         logger.debug(f"5.4 ")
                         exits = False
-                        if "json_refs" not in self.dictionary[value_hash]:
-                            logger.debug(f'5.5 关键错误{not hasattr(self.dictionary[value_hash],"json_refs")}')
-                            self.dictionary[value_hash]["json_refs"]=[]
-                        for item in self.dictionary[value_hash]["json_refs"]:
+                        if "lake_refs" not in self.dictionary[value_hash]:
+                            logger.debug(f'5.5 关键错误{not hasattr(self.dictionary[value_hash],"lake_refs")}')
+                            self.dictionary[value_hash]["lake_refs"]=[]
+                        for item in self.dictionary[value_hash]["lake_refs"]:
                             logger.debug(f"5.6 item['url_id']:{item['url_id']},{url_id};item['block_idx']:{item['block_idx']},{block_idx}")
                             if item["url_id"] == url_id and item["block_idx"]==block_idx:
                                 exits = True
                         logger.debug(f"6. url_id & block_idx is exists? {exits}")
                         if not exits:
                             logger.debug(f"7. value_hash={value_hash},url_id = {url_id},block_idx={block_idx}")
-                            self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})  
+                            self.dictionary[value_hash]["lake_refs"].append({"url_id":url_id,"block_idx":block_idx})  
         #FileLib.dumpJson("test.json",self.dictionary)
-    def split_json_and_replace_struct(self, json_data_list, size) -> Tuple[List[str],dict,dict]:
-        length =0
-        blocks=[]
-        block_items=[]
-        for item in json_data_list:
-            item_len = len(item["value"])
-            #logger.info(f'{len(blocks)},{len(block_items)},{length},{size},{len(item["value"])},{"/".join([str(p) for p in item["path"]])}')
-            if length + item_len > size:
-                blocks.append(block_items.copy())
-                block_items=[]
-                block_items.append(item)
-                length = item_len
-            else:
-                block_items.append(item)
-                length += item_len
-        if block_items:
-            blocks.append(block_items.copy())
-        
-        path_dict = {}
-        value_dict = {}
-        restruct_blocks=[]
-        for block_items in blocks:
-            html = ""
-            for block in block_items:
-                path_hash = HashLib.md5("/".join([str(item) for item in block["path"]]))[:6]
-                path_dict[path_hash] = block["path"]
-                value_hash = HashLib.md5(block["value"])[:6]
-                value_dict[value_hash] = block["value"]
-                html += f"<div path={path_hash} value={value_hash}>{block['value']}</div>"
-            restruct_blocks.append(html)
-            #restruct_block = SoupLib.wrap_block_with_tag(SoupLib.html2soup(html,"html.parser"),"div")
-            #restruct_blocks.append(restruct_block)              
-        return restruct_blocks,path_dict,value_dict    
-    def restore_struct_and_join_json(self,html_data_list:list[list[str]],path_dict:dict) -> List[dict]:
-        # html_data_list example:
-        # ["<div path="33b031"><p>abc</p> </div>
-        #   <div path="33b032"><p>123</p> </div>",
-        #  "<div path="33b033"><p>xyz</p> </div>
-        #   <div path="33b034"><p>456</p> </div>",
-        # ]
-        new_updates = []
-        for html_data in html_data_list:
-            soup_data = SoupLib.html2soup(html_data)
-            contents = soup_data.contents
-            for content in contents:
-                if type(content) == bs4.element.NavigableString and content.text=="\n":
-                    continue
-                content_hash = content.attrs.get("path")
-                if content_hash:
-                    path = path_dict.get(content_hash)
-                    if path:
-                        value = "".join([f"<!DOCTYPE {str(item)}>" if isinstance(item,Doctype) else str(item) for item in content.contents])
-                        new_updates.append({"value":value,"path":path})
-        return new_updates                    
     def translate_lake_text(self,url_id,chain,lake_data,size=1000):
         newBlocks = []  
         if FileLib.existsFile(f"temp/{url_id}/lake/source.html"):
-            updates = FileLib.readFile(f"temp/{url_id}/lake/source.html")
+            source = FileLib.readFile(f"temp/{url_id}/lake/source.html")
+            frame = FileLib.readFile(f"temp/{url_id}/lake/frame.html")
+            soup = SoupLib.html2soup(frame)
             keep_dict = FileLib.loadJson(f"temp/{url_id}/lake/keep_dict.json")
             attribute_dict = FileLib.loadJson(f"temp/{url_id}/lake/attribute_dict.json")
+            value_dict = FileLib.loadJson(f"temp/{url_id}/lake/value_dict.json")
             file_contents = FileLib.readFiles(f"temp/{url_id}/lake","part_[0-9]*_en.html")
             blocks = [ item[1] for item in sorted(file_contents.items())]     
         else:
@@ -129,7 +76,13 @@ class LakeTranslater(Translater):
                 
             #将每一个updates的value进行attribue hash
             attribute_dict ={}
+
             soup = SoupLib.html2soup(lake_data)
+            lake_tags = self.config.get("LAKE_TAG")
+            for tag in lake_tags:
+                SoupLib.replace_tag_name(soup,tag["key"],tag["value"])
+            FileLib.writeFile(f"temp/{url_id}/lake/tags.html",SoupLib.soup2html(soup))
+            
             attribute_dict.update(SoupLib.hash_attribute(soup))
             source = SoupLib.soup2html(soup)
         
@@ -141,13 +94,17 @@ class LakeTranslater(Translater):
                 keep_dict[HashLib.md5(keep_item)[:6]] = keep_item
             
             blocks = []
-            SoupLib.walk(soup, size=size,blocks=blocks,ignore_tags=["script", "style", "ignore","svg"])
-            FileLib.writeFile(f"temp/{url_id}/lake/source1.html",SoupLib.soup2html(soup))
+            value_dict = {}
+            SoupLib.walk(soup, size=size,blocks=blocks,ignore_tags=["script", "style", "ignore","svg"],value_dict = value_dict)
+            FileLib.writeFile(f"temp/{url_id}/lake/frame.html",SoupLib.soup2html(soup))
             FileLib.writeFile(f"temp/{url_id}/lake/source.html",source)
             FileLib.dumpJson(f"temp/{url_id}/lake/keep_dict.json",keep_dict)
             FileLib.dumpJson(f"temp/{url_id}/lake/attribute_dict.json",attribute_dict)
+            FileLib.dumpJson(f"temp/{url_id}/lake/value_dict.json",value_dict)
+            
             for idx,block in enumerate(blocks):
                 FileLib.writeFile(f"temp/{url_id}/lake/part_{str(idx).zfill(3)}_en.html",block)
+
         with tqdm(total= len(blocks)) as pbar:
             for index,block in enumerate(blocks):
                 if FileLib.existsFile(f"temp/{url_id}/lake/part_{str(index).zfill(3)}_cn.html"):
@@ -155,11 +112,10 @@ class LakeTranslater(Translater):
                     newBlocks.append(content)
                     pbar.update(1)
                 else:
-                    continue
                     try:
                         logger.debug(f"1. block:{block},index:{index}")
                         soup_block = SoupLib.html2soup(block)
-                        SoupLib.mask_html_with_dictionary(soup_block,attrs=["path","value"],value_key="value",dictionary = self.dictionary)
+                        SoupLib.mask_html_with_dictionary(soup_block,attrs=["t","value"],value_key="value",dictionary = self.dictionary)
                         #SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
                         
                         #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
@@ -189,20 +145,25 @@ class LakeTranslater(Translater):
                             new_soup_block = SoupLib.html2soup(content)
                         else:
                             new_soup_block = soup_block
+                        
                         self.update_dictionary(value_dict,new_soup_block,url_id=url_id,block_idx=index)
+                        
                         #SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
-                        SoupLib.unmask_html_with_dictionary(new_soup_block,attrs=["path","value"],value_key="value",dictionary=self.dictionary)
+                        SoupLib.unmask_html_with_dictionary(new_soup_block,attrs=["t","value"],value_key="value",dictionary=self.dictionary)
                         new_block = SoupLib.soup2html(new_soup_block)
                         #logger.debug(f"4. new_block:{new_block}")
-                        FileLib.writeFile(f"temp/{url_id}/json/part_{str(index).zfill(3)}_cn.html",new_block)
+                        FileLib.writeFile(f"temp/{url_id}/lake/part_{str(index).zfill(3)}_cn.html",new_block)
                         newBlocks.append(new_block)
                         pbar.update(1)
                     except Exception as e:
                         logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                         raise e
-        newBlocks = blocks.copy()
         # soup = SoupLib.restore_block_with_dict(soup,keep_dict,"keep")
         SoupLib.unwalk(soup,newBlocks)
+        lake_tags = self.config.get("LAKE_TAG")
+        for tag in lake_tags:
+            SoupLib.replace_tag_name(soup,tag["value"],tag["key"])
+        #FileLib.writeFile(f"temp/{url_id}/lake/tags.html",SoupLib.soup2html(soup))
         SoupLib.unhash_attribute(soup,attribute_dict)
         new_updates = SoupLib.soup2html(soup)
 

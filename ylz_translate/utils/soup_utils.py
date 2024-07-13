@@ -2,7 +2,7 @@ import re
 import json
 from typing import List
 from bs4 import BeautifulSoup
-from bs4.element import Tag, Comment
+from bs4.element import Tag, Comment,Doctype
 from .crypto_utils import HashLib
 from .file_utils import *    
 import time
@@ -275,7 +275,7 @@ class SoupLib():
         return texts_list
 
     @classmethod
-    def walk(cls, soup, func=None,size=200,level=0,blocks=[],ignore_tags=["script","style","ignore"]):
+    def walk(cls, soup, func=None,size=200,level=0,blocks=[],ignore_tags=["script","style","ignore"],value_dict={}):
         contents = soup.contents
         length = 0
         nodes = {}
@@ -295,8 +295,16 @@ class SoupLib():
                 #print("level=",level,f"replace with block {len(blocks)}")
                 nodes_html=""
                 for key in nodes:
-                    cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
-                    nodes_html += f"<div t={key}>{nodes[key]}</div>"
+                    if isinstance(nodes[key],Doctype):
+                        print("*"*80,True)
+                        node_html = f"<!DOCTYPE {str(nodes[key])}>"
+                    elif isinstance(nodes[key],Tag):
+                        node_html = str(nodes[key])
+                    
+                    value_hash = HashLib.md5(node_html)[:6]
+                    value_dict[value_hash] = node_html
+                    cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key} value={value_hash}></div>", 'html.parser'))
+                    nodes_html += f"<div t={key} value={value_hash}>{node_html}</div>"                
                 blocks.append(nodes_html)
                 nodes = {}
 
@@ -308,15 +316,21 @@ class SoupLib():
                     continue
                 else:
                     if isinstance(node, Tag): 
-                        cls.walk(node, func=func,size=size,level=level+1,blocks=blocks,ignore_tags=ignore_tags)
+                        cls.walk(node, func=func,size=size,level=level+1,blocks=blocks,ignore_tags=ignore_tags,value_dict=value_dict)
                     else:
                         func and  func(node)
         if nodes:
                 #print("level=",level,f"replace with block {len(blocks)}")
                 nodes_html=""
                 for key in nodes:
-                    cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key}></div>", 'html.parser'))
-                    nodes_html += f"<div t={key}>{nodes[key]}</div>"
+                    if isinstance(nodes[key],Doctype):
+                        node_html = f"<!DOCTYPE {str(nodes[key])}>"
+                    elif isinstance(nodes[key],Tag):
+                        node_html = str(nodes[key])
+                    value_hash = HashLib.md5(node_html)[:6]
+                    value_dict[value_hash] = node_html
+                    cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key} value={value_hash}></div>", 'html.parser'))
+                    nodes_html += f"<div t={key} value={value_hash}>{node_html}</div>"
                 blocks.append(nodes_html)
                 nodes = {}
     @classmethod
@@ -331,7 +345,21 @@ class SoupLib():
                 t = target_node.attrs.get("t")
                 source_node = soup.find(attrs={"t":t})
                 if source_node:
-                    source_node.replace_with(target_node.contents[0]) 
+                    #这种方法的问题是target_node.contents可能包含前后两个"\n",导致真正的元素丢失,该用扩展target_node.contents,然后unwrap
+                    #print("idx=",idx,"t=",t,"target_node.contents[0]=",len(target_node.contents),[str(item) for item in target_node.contents])
+                    #source_node.replace_with(target_node.contents[0])
+                    source_node.extend(target_node.contents)
+                    source_node.unwrap()
+                    #FileLib.writeFile(f"{t}-{idx}.html",SoupLib.soup2html(soup))
+    @classmethod
+    def replace_tag_name(cls,soup,old_tag_name,new_tag_name):
+        old_tags = [tag for tag in soup.find_all() if tag.name == old_tag_name]
+        for old_tag in old_tags:
+            new_tag = soup.new_tag(new_tag_name)
+            for attr, value in old_tag.attrs.items():
+                new_tag[attr] = value            
+            new_tag.extend(old_tag.contents)
+            old_tag.replace_with(new_tag)
 
 if __name__ == "__main__":
     html0 = requests.get("https://global.alipay.com/docs/").text
