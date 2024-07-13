@@ -10,7 +10,7 @@ from ylz_translate.cli.fix_dict import fixDict
 from ylz_translate.cli.sync_dict import syncDict
 from ylz_translate.cli.display_result import displayResult
 
-def main():
+async def main():
     parser = argparse.ArgumentParser(description = "渐进式翻译系统")
     parser.add_argument("--mode", required=True, choices=["md","html","json","lake"],help="操作模式(md|html|json|lake)")
     parser.add_argument("--log_level",type=str,default="INFO",choices=["INFO","DEBUG"],help="日志级别,默认:INFO")
