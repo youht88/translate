@@ -29,7 +29,7 @@ class LakeTranslater(Translater):
 
     def update_dictionary(self, origin_value_dict,target_soup,url_id,block_idx,mask_key="__m__"):
         logger.debug(f"1. enter function,url_id:{url_id},block_idx:{block_idx}")
-        for idx, target_element in enumerate(target_soup.find_all(lambda tag:tag.get("t") and tag.get("value"))):
+        for idx, target_element in enumerate(target_soup.find_all(lambda tag:tag.get("path") and tag.get("value"))):
             target_html = "".join([f"<!DOCTYPE {str(item)}>" if isinstance(item,Doctype) else str(item) for item in target_element.contents])
             logger.debug(f"4. idx: {idx},target_text : {target_html}")
             if not re.findall(f"{mask_key}=(.{{6}})",target_html):
@@ -60,8 +60,12 @@ class LakeTranslater(Translater):
                             logger.debug(f"7. value_hash={value_hash},url_id = {url_id},block_idx={block_idx}")
                             self.dictionary[value_hash]["lake_refs"].append({"url_id":url_id,"block_idx":block_idx})  
         #FileLib.dumpJson("test.json",self.dictionary)
+
     def translate_lake_text(self,url_id,chain,lake_data,size=1000):
         newBlocks = []  
+        lake_keys = self.config.get("LAKE_KEYS")
+        lake_tags = self.config.get("LAKE_TAG")
+
         if FileLib.existsFile(f"temp/{url_id}/lake/source.html"):
             source = FileLib.readFile(f"temp/{url_id}/lake/source.html")
             frame = FileLib.readFile(f"temp/{url_id}/lake/frame.html")
@@ -71,17 +75,12 @@ class LakeTranslater(Translater):
             value_dict = FileLib.loadJson(f"temp/{url_id}/lake/value_dict.json")
             file_contents = FileLib.readFiles(f"temp/{url_id}/lake","part_[0-9]*_en.html")
             blocks = [ item[1] for item in sorted(file_contents.items())]     
-        else:
-            lake_keys = self.config.get("LAKE_KEYS")
-                
-            #将每一个updates的value进行attribue hash
+        else:        
             attribute_dict ={}
-
             soup = SoupLib.html2soup(lake_data)
-            lake_tags = self.config.get("LAKE_TAG")
+            
             for tag in lake_tags:
                 SoupLib.replace_tag_name(soup,tag["key"],tag["value"])
-            FileLib.writeFile(f"temp/{url_id}/lake/tags.html",SoupLib.soup2html(soup))
             
             attribute_dict.update(SoupLib.hash_attribute(soup))
             source = SoupLib.soup2html(soup)
@@ -115,7 +114,7 @@ class LakeTranslater(Translater):
                     try:
                         logger.debug(f"1. block:{block},index:{index}")
                         soup_block = SoupLib.html2soup(block)
-                        SoupLib.mask_html_with_dictionary(soup_block,attrs=["t","value"],value_key="value",dictionary = self.dictionary)
+                        SoupLib.mask_html_with_dictionary(soup_block,attrs=["path","value"],value_key="value",dictionary = self.dictionary)
                         #SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
                         
                         #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
@@ -149,7 +148,7 @@ class LakeTranslater(Translater):
                         self.update_dictionary(value_dict,new_soup_block,url_id=url_id,block_idx=index)
                         
                         #SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
-                        SoupLib.unmask_html_with_dictionary(new_soup_block,attrs=["t","value"],value_key="value",dictionary=self.dictionary)
+                        SoupLib.unmask_html_with_dictionary(new_soup_block,attrs=["path","value"],value_key="value",dictionary=self.dictionary)
                         new_block = SoupLib.soup2html(new_soup_block)
                         #logger.debug(f"4. new_block:{new_block}")
                         FileLib.writeFile(f"temp/{url_id}/lake/part_{str(index).zfill(3)}_cn.html",new_block)
@@ -160,10 +159,10 @@ class LakeTranslater(Translater):
                         raise e
         # soup = SoupLib.restore_block_with_dict(soup,keep_dict,"keep")
         SoupLib.unwalk(soup,newBlocks)
-        lake_tags = self.config.get("LAKE_TAG")
+
         for tag in lake_tags:
             SoupLib.replace_tag_name(soup,tag["value"],tag["key"])
-        #FileLib.writeFile(f"temp/{url_id}/lake/tags.html",SoupLib.soup2html(soup))
+
         SoupLib.unhash_attribute(soup,attribute_dict)
         new_updates = SoupLib.soup2html(soup)
 

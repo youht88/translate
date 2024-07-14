@@ -60,7 +60,7 @@ async with PlaywrightLib(headless=False) as pw:
 #     print(i,item)
 # dictionary = {"Array":"列表","is":"是"}
 # soup1 = SoupLib.html2soup(blocks[idx])
-# #soup1.contents[0].attrs={"t":"abcdef"}
+# #soup1.contents[0].attrs={"path":"abcdef"}
 # soup2 = SoupLib.html2soup(blocks[idx])
 # SoupLib.replace_text_with_dictionary(soup2,dictionary)
 # print(soup1,"\n\n",soup2)

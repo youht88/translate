@@ -63,7 +63,7 @@ async def main():
     init(args)
 
     if args.command == "start":
-        start(args)
+        await start(args)
     elif args.command == "fixDict":    
         fixDict(args)
     elif args.command == "syncDict":

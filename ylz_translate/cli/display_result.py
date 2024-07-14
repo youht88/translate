@@ -30,7 +30,10 @@ def displayResult(args):
     en_blocks_with_idx = [ (idx,item[1]) for idx,item in enumerate(sorted(file_en_contents.items())) if not block_idxes or idx in block_idxes]   
     file_cn_contents = FileLib.readFiles(f"temp/{url_id}/{mode}","part_[0-9]*_cn.html")
     cn_blocks_with_idx = [ (idx,item[1]) for idx,item in enumerate(sorted(file_cn_contents.items())) if not block_idxes or idx in block_idxes]   
-
+    
+    if len(en_blocks_with_idx)!=len(cn_blocks_with_idx):
+        logging.info(f"翻译的片段不完整，请重新生成!")
+        return
     # 创建合并后的 HTML 文件
     create_combined_html(en_blocks_with_idx, cn_blocks_with_idx, output_html_path,no_code)
 

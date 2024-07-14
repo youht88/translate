@@ -2,7 +2,7 @@ import re
 import json
 from typing import List
 from bs4 import BeautifulSoup
-from bs4.element import Tag, Comment,Doctype
+from bs4.element import Tag, Comment,Doctype,Script,Stylesheet
 from .crypto_utils import HashLib
 from .file_utils import *    
 import time
@@ -32,7 +32,7 @@ class SoupLib():
         return soup.encode(formatter="html").decode('utf8')
     @classmethod
     def replace_block_with_tag(cls, soup, tag_name="keep", selectors=[]):
-        #为符合selectors(xpath)的元素(所有)替换位<tag_name hash=<hash of elem>></tag_name>
+        #为符合selectors(xpath)的元素(所有)替换为<tag_name hash=<hash of elem>></tag_name>
         #如果已经有tag_name则不会重复嵌套tag_name
         #将elem保存在dictionary字典中，key为hash of elem
         # 返回新的soup 和 dictionary
@@ -296,15 +296,14 @@ class SoupLib():
                 nodes_html=""
                 for key in nodes:
                     if isinstance(nodes[key],Doctype):
-                        print("*"*80,True)
                         node_html = f"<!DOCTYPE {str(nodes[key])}>"
                     elif isinstance(nodes[key],Tag):
                         node_html = str(nodes[key])
                     
                     value_hash = HashLib.md5(node_html)[:6]
                     value_dict[value_hash] = node_html
-                    cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key} value={value_hash}></div>", 'html.parser'))
-                    nodes_html += f"<div t={key} value={value_hash}>{node_html}</div>"                
+                    cls.replace_block(nodes[key],BeautifulSoup(f"<div path={key} value={value_hash}></div>", 'html.parser'))
+                    nodes_html += f"<div path={key} value={value_hash}>{node_html}</div>"                
                 blocks.append(nodes_html)
                 nodes = {}
 
@@ -329,8 +328,8 @@ class SoupLib():
                         node_html = str(nodes[key])
                     value_hash = HashLib.md5(node_html)[:6]
                     value_dict[value_hash] = node_html
-                    cls.replace_block(nodes[key],BeautifulSoup(f"<div t={key} value={value_hash}></div>", 'html.parser'))
-                    nodes_html += f"<div t={key} value={value_hash}>{node_html}</div>"
+                    cls.replace_block(nodes[key],BeautifulSoup(f"<div path={key} value={value_hash}></div>", 'html.parser'))
+                    nodes_html += f"<div path={key} value={value_hash}>{node_html}</div>"
                 blocks.append(nodes_html)
                 nodes = {}
     @classmethod
@@ -340,17 +339,17 @@ class SoupLib():
     def unwalk(cls,soup,blocks):
         for idx, block in enumerate(blocks):
             target_block = cls.html2soup(block)
-            tnodes = target_block.find_all(lambda tag:tag.has_attr("t"))
+            tnodes = target_block.find_all(lambda tag:tag.has_attr("path") and tag.has_attr("value"))
             for target_node in tnodes:
-                t = target_node.attrs.get("t")
-                source_node = soup.find(attrs={"t":t})
+                t = target_node.attrs.get("path")
+                source_node = soup.find(attrs={"path":t})
                 if source_node:
                     #这种方法的问题是target_node.contents可能包含前后两个"\n",导致真正的元素丢失,该用扩展target_node.contents,然后unwrap
                     #print("idx=",idx,"t=",t,"target_node.contents[0]=",len(target_node.contents),[str(item) for item in target_node.contents])
                     #source_node.replace_with(target_node.contents[0])
                     source_node.extend(target_node.contents)
                     source_node.unwrap()
-                    #FileLib.writeFile(f"{t}-{idx}.html",SoupLib.soup2html(soup))
+                    #FileLib.writeFile(f"{idx}-{t}.html",SoupLib.soup2html(soup))
     @classmethod
     def replace_tag_name(cls,soup,old_tag_name,new_tag_name):
         old_tags = [tag for tag in soup.find_all() if tag.name == old_tag_name]

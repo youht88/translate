@@ -54,6 +54,6 @@ async def start_task(args):
             translater.clearErrorMsg()
         translater.start(size=size)
     
-def start(args):
-    asyncio.run(start_task(args)) 
+async def start(args):
+    await start_task(args) 
 
