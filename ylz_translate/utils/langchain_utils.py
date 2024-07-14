@@ -130,7 +130,7 @@ class LangchainLib():
                         return llm
                     else:
                         return llm['llm'] 
-        raise Exception("请先调用regist_llm注册语言模型")
+        raise Exception("请先确保<LLM>_API_KEYS环境变量被正确设置，然后调用regist_llm注册语言模型")
     
     def regist_llm(self):
         defaults = {"LLM.TOGETHER":
