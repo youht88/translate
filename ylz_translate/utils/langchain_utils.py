@@ -12,13 +12,13 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain.memory import ConversationBufferMemory
 
 from langchain.docstore.document import Document
+from langchain_community.document_loaders import RecursiveUrlLoader
+from langchain_community.document_transformers import MarkdownifyTransformer
 
 from langchain_core.prompts import ChatPromptTemplate,PromptTemplate,SystemMessagePromptTemplate
 from langchain_core.prompt_values import StringPromptValue,ChatPromptValue
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-from markdownify import markdownify as MarkdownifyTransformer
 
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import (
@@ -260,6 +260,29 @@ class LangchainLib():
             prompt = ChatPromptTemplate.from_messages(messages)
         return prompt
 
+    def load_html_split_markdown(self, url, max_depth=2, extractor=None, metadata_extractor=None, chunk_size=1000,chunk_overlap=0):
+        loader = RecursiveUrlLoader(
+            url = url,
+            max_depth= max_depth,
+            # use_async=False,
+            extractor= extractor,
+            metadata_extractor= metadata_extractor
+            # exclude_dirs=(),
+            # timeout=10,
+            # check_response_status=True,
+            # continue_on_failure=True,
+            # prevent_outside=True,
+            # base_url=None,
+        )
+        docs = loader.load()
+        transformer = MarkdownifyTransformer()
+        converted_docs = transformer.transform_documents(docs)
+        result = []        
+        for doc in converted_docs:
+            splited_docs = self.split_markdown_docs(doc.page_content)
+            result.append({"doc":doc,"blocks":splited_docs})
+        return result
+                
     def get_outputParser(self,pydantic_object=None):
         if pydantic_object:
             return PydanticOutputParser(pydantic_object=pydantic_object)
@@ -375,7 +398,7 @@ class LangchainLib():
         text_with_placeholders = self.replace_blocks_with_placeholders(text, tables, 'TABLE')
         text_with_placeholders = self.replace_blocks_with_placeholders(text_with_placeholders, scripts, 'SCRIPT')
         
-        FileLib.writeFile("current.md",text_with_placeholders)
+        #FileLib.writeFile("current.md",text_with_placeholders)
         # 拆分文本
         split_parts = self.split_text(text_with_placeholders,chunk_size=chunk_size,chunk_overlap=chunk_overlap)
         
@@ -532,7 +555,12 @@ def __rag_test(langchainLib:LangchainLib):
     # docs = [Document("I am a student"),Document("who to go to china"),Document("this is a table")]
     # vectorestore = langchainLib.create_faiss_from_docs(docs,embedding=embed)
     # langchainLib.save_faiss("faiss.db",vectorestore,index_name="gemini")
-async def __load_test(langchainLib:LangchainLib):
+
+async def __loader_test(langchainLib:LangchainLib):
+    result = langchainLib.load_html_split_markdown(url = "https://python.langchain.com/v0.2/docs")
+    print("result:",[{"doc_len":len(doc['doc'].page_content),"doc_blocks":len(doc['blocks'])} for doc in result])
+
+def __tools_test(langchainLib:LangchainLib):
     pass
 
 async def main():
@@ -540,11 +568,11 @@ async def main():
     # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试llm {Color.RESET}")
     # __llm_test(langchainLib)
 
-    StringLib.logging_in_box(f"\n{Color.YELLOW} 测试prompt {Color.RESET}")
-    await __prompt_test(langchainLib)    
+    # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试prompt {Color.RESET}")
+    # await __prompt_test(langchainLib)    
     
     StringLib.logging_in_box(f"\n{Color.YELLOW} 测试loader {Color.RESET}")
-    await __load_test(langchainLib)    
+    await __loader_test(langchainLib)    
 
     # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试runnable {Color.RESET}")
     # __runnalble_test(langchainLib)
