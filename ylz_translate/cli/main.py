@@ -1,4 +1,5 @@
 
+import asyncio
 import logging
 import argparse
 
@@ -77,3 +78,6 @@ async def main():
 # python3 ../../fix.py --mode json clearTask --url_id d2a41fe3fc36fe7e998e88623d2889a8 --blocks 1 3 5
 # python3 ../../fix.py --mode json fixDict --old_text "<.+>(.*消息由.*?)</.+>" --new_text "报文由报文头和报文正文组成。以下部 分专注于报文正文结构。报文头结构请参阅" --issubtext
 # python3 ../../fix.py --mode json fixDict --old_text "<.+>(.*0s.*?)</.+>" --new_text "" --issubtext -l
+
+if __name__ == "__main__":
+    asyncio.run(main())
