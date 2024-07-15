@@ -1,5 +1,6 @@
 import logging
 import inspect
+import json
 from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -28,7 +29,7 @@ from langchain_community.embeddings import (
 )
 from langchain_together import TogetherEmbeddings
 
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda,Runnable
 from operator import itemgetter
 
 from langchain_core.output_parsers import PydanticOutputParser
@@ -351,8 +352,26 @@ class LangchainLib():
         if key == "DUCKDUCKGO":
             search = DuckDuckGoSearchAPIWrapper()
             tool  = DuckDuckGoSearchResults(api_wrapper=search)
-            return tool
+            #snippet,title,link: 
+            pattern = r"\[SNIPPET: (.*?), TITLE: (.*?), LINK: ([^\]]+)\]"
+            def __tojson(text):
+                matches = re.findall(pattern, text)
+                # 将提取的信息转换为 JSON 格式
+                results = []
+                for match in matches:
+                    snippet, title, link = match
+                    results.append({
+                        "snippet": snippet.strip(),
+                        "title": title.strip(),
+                        "link": link.strip()
+                    })
+                # 将结果转换为 JSON 字符串
+                json_string = json.dumps(results, indent=4, ensure_ascii=False)
+                print(json_string)
+                return Document("hello world")
+            return tool | RunnableLambda(func = __tojson )
         elif key == "TAVILY":
+            # url,content,
             search_config = self.config.get(f"SEARCH_TOOLS.{key}")        
             api_keys = search_config.get("API_KEYS")
             try:
@@ -650,21 +669,21 @@ async def __loader_test(langchainLib:LangchainLib):
     langchainLib.save_faiss("faiss.db",vectorestore,index_name="langchain_doc")
 
 def __tools_test(langchainLib:LangchainLib):
-    tool: TavilySearchResults = langchainLib.get_search_tool("TAVILY")
-    prompt = langchainLib.get_prompt(is_chat=False,human_keys={"context":"关联的上下文是:","question":"问题是:"})
-    res = tool.invoke("易联众现在股价是多少？")
-    print(res)
-    llm = langchainLib.get_llm("LLM.DEEPSEEK")
-    chain = RunnableParallel({
-        "question": RunnablePassthrough(),
-        "context": tool
-    }) | prompt | llm 
-    res = chain.invoke("易联众现在股价是多少？")
-    print(res)
+    # tool: TavilySearchResults = langchainLib.get_search_tool("TAVILY")
+    # prompt = langchainLib.get_prompt(is_chat=False,human_keys={"context":"关联的上下文是:","question":"问题是:"})
+    # res = tool.invoke("易联众现在股价是多少？")
+    # print(res)
+    # llm = langchainLib.get_llm("LLM.DEEPSEEK")
+    # chain = RunnableParallel({
+    #     "question": RunnablePassthrough(),
+    #     "context": tool
+    # }) | prompt | llm 
+    # res = chain.invoke("易联众现在股价是多少？")
+    # print(res)
 
     print("#"*50)
-    search = DuckDuckGoSearchAPIWrapper()
-    tool  = DuckDuckGoSearchResults(api_wrapper=search)
+    tool = langchainLib.get_search_tool("DUCKDUCKGO")
+    print(isinstance(tool,Runnable))
     res = tool.invoke("易联众现在股价是多少？")
     print(res)
 
