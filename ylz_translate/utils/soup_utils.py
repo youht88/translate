@@ -8,6 +8,8 @@ from .file_utils import *
 import time
 import requests
 from lxml import etree
+from logger import logger
+import uuid
 class SoupLib():
     @classmethod
     def html2soup(cls, html) -> BeautifulSoup:
@@ -287,7 +289,7 @@ class SoupLib():
             if not is_ignored:
                 length += len(str(node))
                 if length < size:
-                    hash = HashLib.md5(str(time.time()))[:6]
+                    hash = HashLib.md5(str(uuid.uuid4()))[:6]
                     nodes[hash]=node
                     continue
             length = 0
@@ -309,7 +311,7 @@ class SoupLib():
 
             if not is_ignored:
                 if len(str(node)) < size:
-                    hash = HashLib.md5(str(time.time()))[:6]
+                    hash = HashLib.md5(str(uuid.uuid4()))[:6]
                     nodes[hash]=node
                     length += len(str(node))
                     continue
