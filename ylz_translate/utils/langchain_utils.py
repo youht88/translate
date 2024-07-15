@@ -3,6 +3,7 @@ import inspect
 from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.llms import QianfanLLMEndpoint
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from langchain_community.llms import Ollama
@@ -37,6 +38,11 @@ from langchain.output_parsers import RetryOutputParser
 from langchain_core.pydantic_v1 import BaseModel, Field, validator
 from typing import List,Literal
 
+from langchain_community.utilities.tavily_search import TavilySearchAPIWrapper
+from langchain_community.tools.tavily_search.tool import TavilySearchResults
+from langchain_community.utilities.duckduckgo_search import DuckDuckGoSearchAPIWrapper
+from langchain_community.tools import DuckDuckGoSearchResults
+
 from gradio_client import Client,file
 import re
 
@@ -54,20 +60,21 @@ class LangchainLib():
     embeddings:list  = []
     def __init__(self):
         self.config = Config.get()
-        self.add_plugins()
+        #self.add_plugins()
         self.regist_llm()
         self.regist_embedding()
         # 创建一个对话历史管理器
         self.memory = ConversationBufferMemory()
 
-    def add_plugins(self):
-        plugins = {"invoke":ChatOpenAI.invoke,
-                   "ainvoke":ChatOpenAI.ainvoke,
-                   "stream":ChatOpenAI.stream,
-                   "astream":ChatOpenAI.astream,
-            }
+    def add_plugins(self,debug=False):
+        plugins = [{"class":ChatOpenAI,"func":ChatOpenAI.invoke},
+                   {"class":ChatOpenAI,"func":ChatOpenAI.ainvoke},
+                   {"class":ChatOpenAI,"func":ChatOpenAI.stream},
+                   {"class":ChatOpenAI,"func":ChatOpenAI.astream},
+                   {"class":TavilySearchResults,"func":TavilySearchResults.invoke}
+        ]
         def get_wrapper(func):
-            logging.info(f"增加ChatOpenAI.{func.__name__}的插件!!")
+            logging.info(f"增加{func.__qualname__}的插件!!")
             def sync_wrapper(self, *args,**kwargs):
                 if isinstance(args[0],StringPromptValue):
                     text = args[0].text
@@ -75,6 +82,13 @@ class LangchainLib():
                 elif isinstance(args[0],ChatPromptValue):
                     chatPromptValue = args[0]
                     chatPromptValue.messages.insert(0,SystemMessage(f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}"))
+                elif isinstance(args[0],str):
+                    new_args = list(args).copy()
+                    text = new_args[0]
+                    new_args[0] = f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}\n{text}"                    
+                    #print("?"*10,new_args,"现在仍使用原args")
+                if debug:
+                    StringLib.logging_in_box("提示词-->"+str(args))
                 return func(self, *args, **kwargs)
             async def async_wrapper(self, *args,**kwargs):
                 if isinstance(args[0],StringPromptValue):
@@ -83,14 +97,18 @@ class LangchainLib():
                 elif isinstance(args[0],ChatPromptValue):
                     chatPromptValue = args[0]
                     chatPromptValue.messages.insert(0,SystemMessage(f"现在是北京时间:{datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}"))
+                if debug:
+                    StringLib.logging_in_box("提示词-->"+str(args))
                 return await func(self, *args, **kwargs)
             if  inspect.iscoroutinefunction(func):
                 return async_wrapper
             else:
                 return sync_wrapper
-        for key in plugins:
-            func = plugins[key]
-            setattr(ChatOpenAI,key,get_wrapper(func))
+        for item in plugins:
+            func = item["func"]
+            func_name = func.__name__
+            cls = item["class"]
+            setattr(cls,func_name,get_wrapper(func))
 
     def get_llm(self,key=None, full=False,delay=10)->ChatOpenAI:
         if self.llms:
@@ -112,25 +130,41 @@ class LangchainLib():
                     if not llm.get('llm'):
                         llm_type = llm.get('type')
                         if llm_type == 'LLM.GEMINI':
-                            StringLib.logging_in_box(f"google_api_key={llm.get('api_key')},model={llm.get('model')}")
-                            llm['llm'] = ChatGoogleGenerativeAI(
-                                google_api_key=llm.get('api_key'), 
-                                model=llm.get('model'),
-                                temperature= llm.get('temperature'))
+                            try:
+                                StringLib.logging_in_box(f"google_api_key={llm.get('api_key')},model={llm.get('model')}")
+                                llm['llm'] = ChatGoogleGenerativeAI(
+                                    google_api_key=llm.get('api_key'), 
+                                    model=llm.get('model'),
+                                    temperature= llm.get('temperature'))
+                            except:
+                                raise Exception(f"请确保{llm_type}_API_KEYS环境变量被正确设置")                                
+                        elif llm_type == 'LLM.QIANFAN':
+                            try:
+                                StringLib.logging_in_box(f"qianfan_api_key={llm.get('api_key')},qianfan_sec_key={llm.get('sec_key')},model={llm.get('model')}")
+                                llm['llm'] = QianfanLLMEndpoint(
+                                    qianfan_ak= llm.get('api_key'),
+                                    qianfan_sk= llm.get('sec_key'),
+                                    model= llm.get('model'))
+                            except:
+                                raise Exception(f"请确保{llm_type}_API_KEYS和{llm_type}_SEC_KEYS环境变量被正确设置")
                         else:
-                            llm['llm'] = ChatOpenAI(
-                                base_url=llm.get('base_url'),
-                                api_key= llm.get('api_key'),
-                                model= llm.get('model'),
-                                temperature= llm.get('temperature')
-                                )
+                            try:
+                                llm['llm'] = ChatOpenAI(
+                                    base_url=llm.get('base_url'),
+                                    api_key= llm.get('api_key'),
+                                    model= llm.get('model'),
+                                    temperature= llm.get('temperature')
+                                    )
+                            except:
+                                raise Exception(f"请确保{llm_type}_API_KEYS环境变量被正确设置")                                
+                            
                     llm['used'] = llm.get('used',0) + 1 
                     llm['last_used'] = time.time()
                     if full:
                         return llm
                     else:
                         return llm['llm'] 
-        raise Exception("请先确保<LLM>_API_KEYS环境变量被正确设置，然后调用regist_llm注册语言模型")
+        raise Exception(f"请确保{key}_API_KEYS环境变量被正确设置,然后调用regist_llm注册语言模型")
     
     def regist_llm(self):
         defaults = {"LLM.TOGETHER":
@@ -140,7 +174,11 @@ class LangchainLib():
                    "LLM.GROQ":
                       {"model":"llama3-70b-8192","temperature":0},
                    "LLM.GEMINI":
-                      {"model":"gemini-pro","temperature":0}
+                      {"model":"gemini-pro","temperature":0},
+                    "LLM.DEEPSEEK":
+                      {"model":"deepseek-chat","temperature":1},
+                    "LLM.QIANFAN":
+                      {"model":"Yi-34B-Chat","temperature":0.7}
                   }
         for key in defaults:
             default = defaults[key]
@@ -151,19 +189,39 @@ class LangchainLib():
                 api_keys = api_keys.split(",")
             else:
                 api_keys = []
+
+            sec_keys = language.get("SEC_KEYS")
+            if sec_keys:
+                sec_keys = sec_keys.split(",")
+            else:
+                sec_keys = []
             model= language.get("MODEL") if language.get("MODEL") else default['model']
             temperature = language.get("TEMPERATURE") if language.get("TEMPERATURE") else default['temperature']
-            for api_key in api_keys:
-                self.llms.append({
-                    "llm": None,
-                    "type": key,
-                    "base_url":base_url,
-                    "api_key":api_key,
-                    "model":model,
-                    "temperature":temperature,
-                    "used":0,
-                    "last_used": 0 
-                })
+            for idx, api_key in enumerate(api_keys):
+                if key == "LLM.QIANFAN" and len(api_keys) == len(sec_keys):
+                    self.llms.append({
+                        "llm": None,
+                        "type": key,
+                        "base_url":base_url,
+                        "api_key":api_key,
+                        "sec_key":sec_keys[idx],
+                        "model":model,
+                        "temperature":temperature,
+                        "used":0,
+                        "last_used": 0 
+                    })
+                else:
+                    self.llms.append({
+                        "llm": None,
+                        "type": key,
+                        "base_url":base_url,
+                        "api_key":api_key,
+                        "sec_key":"",
+                        "model":model,
+                        "temperature":temperature,
+                        "used":0,
+                        "last_used": 0 
+                    })
         
     def get_embedding(self,key="EMBEDDING.TOGETHER",full=False) :
         if self.embeddings:
@@ -288,6 +346,31 @@ class LangchainLib():
             return PydanticOutputParser(pydantic_object=pydantic_object)
         return StrOutputParser()
     
+    def get_search_tool(self,key="TAVILY"):
+        key = key.upper()
+        if key == "DUCKDUCKGO":
+            search = DuckDuckGoSearchAPIWrapper()
+            tool  = DuckDuckGoSearchResults(api_wrapper=search)
+            return tool
+        elif key == "TAVILY":
+            search_config = self.config.get(f"SEARCH_TOOLS.{key}")        
+            api_keys = search_config.get("API_KEYS")
+            try:
+                if api_keys:
+                    api_keys = api_keys.split(",")
+                else:
+                    api_keys = []
+                api_key = random.choice(api_keys)
+            except:
+                raise Exception(f"请先设置{key}_API_KEYS环境变量") 
+            if api_key:
+                try:
+                    search = TavilySearchAPIWrapper(tavily_api_key=api_key)
+                    tool = TavilySearchResults(api_wrapper=search)
+                    return tool 
+                except:
+                    raise Exception("请先设置TAVILY_API_KEYS环境变量") 
+
     def get_opengpt4o_client(self,api_key):
         client = Client("KingNish/OpenGPT-4o")
         return client
@@ -439,7 +522,7 @@ class LangchainLib():
 
 def __llm_test(langchainLib:LangchainLib):
     for _ in range(3):
-        llm = langchainLib.get_llm("LLM.GROQ")
+        llm = langchainLib.get_llm("LLM.DEEPSEEK")
         res = llm.invoke("hello")
         print("res:",res)
     print("llms:",[(item["type"],item["api_key"],item["used"]) for item in langchainLib.llms])
@@ -559,9 +642,31 @@ def __rag_test(langchainLib:LangchainLib):
 async def __loader_test(langchainLib:LangchainLib):
     result = langchainLib.load_html_split_markdown(url = "https://python.langchain.com/v0.2/docs")
     print("result:",[{"doc_len":len(doc['doc'].page_content),"doc_blocks":len(doc['blocks'])} for doc in result])
+    blocks = []
+    for item in result:
+        blocks.extend(item['blocks'])
+    print(len(blocks))
+    vectorestore = langchainLib.create_faiss_from_docs(blocks)
+    langchainLib.save_faiss("faiss.db",vectorestore,index_name="langchain_doc")
 
 def __tools_test(langchainLib:LangchainLib):
-    pass
+    tool: TavilySearchResults = langchainLib.get_search_tool("TAVILY")
+    prompt = langchainLib.get_prompt(is_chat=False,human_keys={"context":"关联的上下文是:","question":"问题是:"})
+    res = tool.invoke("易联众现在股价是多少？")
+    print(res)
+    llm = langchainLib.get_llm("LLM.DEEPSEEK")
+    chain = RunnableParallel({
+        "question": RunnablePassthrough(),
+        "context": tool
+    }) | prompt | llm 
+    res = chain.invoke("易联众现在股价是多少？")
+    print(res)
+
+    print("#"*50)
+    search = DuckDuckGoSearchAPIWrapper()
+    tool  = DuckDuckGoSearchResults(api_wrapper=search)
+    res = tool.invoke("易联众现在股价是多少？")
+    print(res)
 
 async def main():
     langchainLib = LangchainLib()
@@ -571,8 +676,8 @@ async def main():
     # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试prompt {Color.RESET}")
     # await __prompt_test(langchainLib)    
     
-    StringLib.logging_in_box(f"\n{Color.YELLOW} 测试loader {Color.RESET}")
-    await __loader_test(langchainLib)    
+    #StringLib.logging_in_box(f"\n{Color.YELLOW} 测试loader {Color.RESET}")
+    #await __loader_test(langchainLib)    
 
     # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试runnable {Color.RESET}")
     # __runnalble_test(langchainLib)
@@ -582,6 +687,9 @@ async def main():
     
     # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试rag {Color.RESET}")
     # __rag_test(langchainLib)
+
+    StringLib.logging_in_box(f"\n{Color.YELLOW} 测试tools {Color.RESET}")
+    __tools_test(langchainLib)
 
 if __name__ == "__main__":
     main()

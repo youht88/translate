@@ -14,7 +14,15 @@ LLM:
     GEMINI:
         API_KEYS: ${GEMINI_API_KEYS}
         MODEL: ${GEMINI_LLM_MODEL}
-
+    DEEPSEEK:
+        API_KEYS: ${DEEPSEEK_API_KEYS}
+        BASE_URL: https://api.deepseek.com/v1
+        MODEL: ${DEEPSEEK_LLM_MODEL}
+    QIANFAN:
+        API_KEYS: ${QIANFAN_API_KEYS}
+        SEC_KEYS: ${QIANFAN_SEC_KEYS}
+        MODEL: ${QIANFAN_LLM_MODEL}
+        
 EMBEDDING:
     TOGETHER: 
         API_KEYS: ${TOGETHER_API_KEYS}
@@ -22,6 +30,9 @@ EMBEDDING:
     GEMINI:
         API_KEYS: ${GEMINI_API_KEYS}
         MODEL: ${GEMINI_EMBEDDING_MODEL}
+SEARCH_TOOLS:
+    TAVILY:
+        API_KEYS: ${TAVILY_API_KEYS}
 PROMPT:
     JSON_MODE: |
         你是专业的金融技术领域专家,同时也是互联网信息化专家。熟悉蚂蚁金服的各项业务及技术接口,擅长这些方面的技术文档的翻译。
