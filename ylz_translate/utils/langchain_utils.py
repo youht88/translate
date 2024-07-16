@@ -353,23 +353,23 @@ class LangchainLib():
             search = DuckDuckGoSearchAPIWrapper()
             tool  = DuckDuckGoSearchResults(api_wrapper=search)
             #snippet,title,link: 
-            pattern = r"\[SNIPPET: (.*?), TITLE: (.*?), LINK: ([^\]]+)\]"
-            def __tojson(text):
-                matches = re.findall(pattern, text)
+            pattern = "snippet: (.*?) title: (.*?) link: (.*?) snippet:"
+            def __toDocument(text):
+                print("?"*50,text,"?"*50)
+                matches = re.finditer(pattern, text)
                 # 将提取的信息转换为 JSON 格式
                 results = []
                 for match in matches:
-                    snippet, title, link = match
+                    snippet = match.group(1)
+                    title = match.group(2)
+                    link = match.group(3)
+                    print(snippet,title,link)
                     results.append({
-                        "snippet": snippet.strip(),
-                        "title": title.strip(),
-                        "link": link.strip()
+                        Document(snippet.strip(),metadata={"title":title.strip(),"link":link.strip()})
                     })
                 # 将结果转换为 JSON 字符串
-                json_string = json.dumps(results, indent=4, ensure_ascii=False)
-                print(json_string)
-                return Document("hello world")
-            return tool | RunnableLambda(func = __tojson )
+                return results
+            return tool | RunnableLambda(func = lambda x:x.json() )
         elif key == "TAVILY":
             # url,content,
             search_config = self.config.get(f"SEARCH_TOOLS.{key}")        
@@ -681,10 +681,14 @@ def __tools_test(langchainLib:LangchainLib):
     # res = chain.invoke("易联众现在股价是多少？")
     # print(res)
 
-    print("#"*50)
-    tool = langchainLib.get_search_tool("DUCKDUCKGO")
-    print(isinstance(tool,Runnable))
-    res = tool.invoke("易联众现在股价是多少？")
+    # print("#"*50)
+    # tool = langchainLib.get_search_tool("DUCKDUCKGO")
+    # print(isinstance(tool,Runnable))
+    # res = tool.invoke("易联众现在股价是多少？")
+    # print(res)
+
+    llm = langchainLib.get_llm("LLM.DEEPSEEK")
+    res = llm.invoke("你不擅长计算问题，遇到计算问题交给tool来完成")
     print(res)
 
 async def main():
