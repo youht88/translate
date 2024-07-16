@@ -165,6 +165,7 @@ class LakeTranslater(Translater):
 
         SoupLib.unhash_attribute(soup,attribute_dict)
         new_updates = SoupLib.soup2html(soup)
+        new_updates = new_updates.replace("<!DOCTYPE lake>","<!doctype lake>")
 
         FileLib.writeFile(f"temp/{url_id}/lake/new_updates.html",new_updates)   
         return new_updates
@@ -217,8 +218,10 @@ class LakeTranslater(Translater):
                 if not os.path.exists(f"{id}_cn.lake"):
                     logger.info(f"开始翻译 url= {url},id={id} ...")
                     resultLake = self.translate_lake_text(id,chain,originLake,size=size)
-                    FileLib.writeFile(f"{id}_cn.lake",resultLake)
-                    success_files.append(f"{id}_cn.lake ---> {lake_file} ---> {url}")
+                    if FileLib.writeFile(f"{id}_cn.lake",resultLake):
+                        success_files.append(f"{id}_cn.lake ---> {lake_file} ---> {url}")
+                    else:
+                        error_files.append(f"{id}_cn.lake ---> {lake_file} ---> {url}")
                 else:
                     exists_files.append(f"{id}_cn.lake ---> {lake_file} ---> {url}")
                     resultLake = FileLib.readFile(f"{id}_cn.lake")
