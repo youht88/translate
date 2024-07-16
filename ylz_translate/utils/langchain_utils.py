@@ -9,7 +9,6 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from langchain_community.llms import Ollama
 from langchain_core.messages import SystemMessage,HumanMessage
-from langchain_core.output_parsers import StrOutputParser
 
 from langchain.memory import ConversationBufferMemory
 
@@ -32,6 +31,7 @@ from langchain_together import TogetherEmbeddings
 from langchain_core.runnables import RunnableParallel, RunnablePassthrough, RunnableLambda,Runnable
 from operator import itemgetter
 
+from langchain_core.output_parsers import StrOutputParser,JsonOutputParser
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain.output_parsers import OutputFixingParser
 from langchain.output_parsers import RetryOutputParser
@@ -43,6 +43,9 @@ from langchain_community.utilities.tavily_search import TavilySearchAPIWrapper
 from langchain_community.tools.tavily_search.tool import TavilySearchResults
 from langchain_community.utilities.duckduckgo_search import DuckDuckGoSearchAPIWrapper
 from langchain_community.tools import DuckDuckGoSearchResults
+
+from langgraph.graph import START,END,MessageGraph,StateGraph
+from langgraph.prebuilt import ToolNode
 
 from gradio_client import Client,file
 import re
@@ -59,6 +62,7 @@ from datetime import datetime
 class LangchainLib():
     llms:list = []
     embeddings:list  = []
+    default_llm_key = "LLM.DEEPSEEK"
     def __init__(self):
         self.config = Config.get()
         #self.add_plugins()
@@ -66,7 +70,16 @@ class LangchainLib():
         self.regist_embedding()
         # 创建一个对话历史管理器
         self.memory = ConversationBufferMemory()
-
+    def set_default_llmkey(self,key):
+        llms = [item for item in self.llms if item['type']==key]
+        if llms:
+            self.default_llm_key = key
+        else:
+            self.clear_default_llmkey()
+    def get_default_llmkey(self):
+        return self.default_llm_key
+    def clear_default_llmkey(self):
+        self.default_llm_key=None
     def add_plugins(self,debug=False):
         plugins = [{"class":ChatOpenAI,"func":ChatOpenAI.invoke},
                    {"class":ChatOpenAI,"func":ChatOpenAI.ainvoke},
@@ -114,7 +127,10 @@ class LangchainLib():
     def get_llm(self,key=None, full=False,delay=10)->ChatOpenAI:
         if self.llms:
             if not key:
-                llms = self.llms
+                if self.default_llm_key:
+                    llms = [item for item in self.llms if item['type']==self.default_llm_key]
+                else:
+                    llms = self.llms
             else:
                 if key == "LLM.GEMINI":
                     #macos不支持
@@ -342,34 +358,56 @@ class LangchainLib():
             result.append({"doc":doc,"blocks":splited_docs})
         return result
                 
-    def get_outputParser(self,pydantic_object=None):
+    def get_outputParser(self,pydantic_object=None,fix=False,llm=None,retry=1):
+        NAIVE_FIX = """Instructions:
+            --------------
+            {instructions}
+            --------------
+            Completion:
+            --------------
+            {input}
+            --------------
+
+            Above, the Completion did not satisfy the constraints given in the Instructions.
+            Error:
+            --------------
+            {error}
+            --------------
+
+            Please try again. Please only respond with an answer that satisfies the constraints laid out in the Instructions:"""
+
+        PROMPT = PromptTemplate.from_template(NAIVE_FIX)
+        
         if pydantic_object:
-            return PydanticOutputParser(pydantic_object=pydantic_object)
-        return StrOutputParser()
+            parser =  PydanticOutputParser(pydantic_object=pydantic_object)
+        else:
+            parser = StrOutputParser()
+        if fix:
+            if not llm:
+                llm = self.get_llm()
+            OutputFixingParser.legacy = False
+            parser =  OutputFixingParser.from_llm(
+                llm = llm,
+                prompt = PROMPT ,
+                parser = parser,
+                max_retries = retry
+            )
+        return parser
     
-    def get_search_tool(self,key="TAVILY"):
+    def get_search_tool(self,key="TAVILY",rows=4):
         key = key.upper()
         if key == "DUCKDUCKGO":
             search = DuckDuckGoSearchAPIWrapper()
-            tool  = DuckDuckGoSearchResults(api_wrapper=search)
+            tool  = DuckDuckGoSearchResults(api_wrapper=search,num_results=rows)
             #snippet,title,link: 
             pattern = "snippet: (.*?) title: (.*?) link: (.*?) snippet:"
             def __toDocument(text):
-                print("?"*50,text,"?"*50)
-                matches = re.finditer(pattern, text)
-                # 将提取的信息转换为 JSON 格式
-                results = []
-                for match in matches:
-                    snippet = match.group(1)
-                    title = match.group(2)
-                    link = match.group(3)
-                    print(snippet,title,link)
-                    results.append({
-                        Document(snippet.strip(),metadata={"title":title.strip(),"link":link.strip()})
-                    })
-                # 将结果转换为 JSON 字符串
-                return results
-            return tool | RunnableLambda(func = lambda x:x.json() )
+                pattern = "\[snippet: (.*?) title: (.*?) link: (.*?)\]"
+                matchs = re.findall(pattern,text)
+                docs = [Document(match[0],metadata={"title":match[1],"link":match[2]}) for match in matchs]
+                return docs
+            tool_doc = tool | RunnableLambda(__toDocument, name="DDG2Document")
+            return tool_doc 
         elif key == "TAVILY":
             # url,content,
             search_config = self.config.get(f"SEARCH_TOOLS.{key}")        
@@ -384,9 +422,13 @@ class LangchainLib():
                 raise Exception(f"请先设置{key}_API_KEYS环境变量") 
             if api_key:
                 try:
+                    def __toDocument(doc_json):
+                        docs = [Document(doc['content'],metadata={"link":doc['url']}) for doc in doc_json]
+                        return docs
                     search = TavilySearchAPIWrapper(tavily_api_key=api_key)
-                    tool = TavilySearchResults(api_wrapper=search)
-                    return tool 
+                    tool = TavilySearchResults(api_wrapper=search,max_results=rows)
+                    tool_doc = tool | RunnableLambda(__toDocument, name="Tavily2Document")
+                    return tool_doc
                 except:
                     raise Exception("请先设置TAVILY_API_KEYS环境变量") 
 
@@ -682,15 +724,57 @@ def __tools_test(langchainLib:LangchainLib):
     # print(res)
 
     # print("#"*50)
-    # tool = langchainLib.get_search_tool("DUCKDUCKGO")
-    # print(isinstance(tool,Runnable))
-    # res = tool.invoke("易联众现在股价是多少？")
-    # print(res)
+    class Output(BaseModel):
+        name:str = Field(description= "姓名")
+        age:int = Field(description= "年龄")
 
-    llm = langchainLib.get_llm("LLM.DEEPSEEK")
-    res = llm.invoke("你不擅长计算问题，遇到计算问题交给tool来完成")
+    langchainLib.add_plugins()
+    langchainLib.set_default_llmkey("LLM.DEEPSEEK")
+    llm = langchainLib.get_llm()
+    print("\n\nllms:",[(item["type"],item["api_key"],item["used"]) for item in langchainLib.llms],"\n")
+
+    outputParser = langchainLib.get_outputParser(Output,fix=True,llm = llm,retry=3)
+    prompt = langchainLib.get_prompt(human_keys = {"ask":"问题"},is_chat=False)
+    search = langchainLib.get_search_tool("TAVILY")
+    tools = [search]
+    #chain  = prompt | (lambda x: x.messages[-1].content) | search | (lambda x:'```json\n{"name":中国,"age":"20"}') | outputParser
+    #chain  = prompt | llm | outputParser
+    chain = prompt | RunnableLambda(lambda x:x.text,name="抽取text") | search 
+    #print("chain to_json = ",chain.to_json())
+    #print("chain name=",chain.get_name())
+    print("chain graph=",chain.get_graph(),"\n")
+    res = chain.invoke({"ask": "北京人口多少"})
+    print(type(res),res)
+    FileLib.writeFile("graph1.png",chain.get_graph().draw_mermaid_png(),mode="wb")
+
+    # llm = langchainLib.get_llm("LLM.DEEPSEEK")
+    # print("llm",llm.to_json())
+    #res = llm.invoke("你不擅长计算问题，遇到计算问题交给tool来完成")
+    #print(res)
+def __graph_test(langchainLib:LangchainLib):
+    def multiply(one: int, two:int):
+        """Multiply two numbers"""
+        return one * two
+    llm = langchainLib.get_llm()
+    llm_with_tools = llm.bind_tools([multiply])
+    graph = MessageGraph()
+    graph.add_node("oracle",llm_with_tools)
+    tool_node = ToolNode([multiply])
+    graph.add_node("multiply",tool_node)
+    graph.add_edge(START,"oracle")
+    graph.add_edge("multiply",END)
+    def router(state)-> Literal["multiply","__end__"]:
+        tool_calls = state[-1].additional_kwargs.get("tool_nodes",[])
+        if len(tool_calls):
+            return "multiply"
+        else:
+            return END
+    graph.add_conditional_edges("oracle",router)
+    chain = graph.compile()
+    FileLib.writeFile("graph.png",chain.get_graph(xray=True).draw_mermaid_png(),mode="wb")
+
+    res = chain.invoke("202*308是多少")
     print(res)
-
 async def main():
     langchainLib = LangchainLib()
     # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试llm {Color.RESET}")
@@ -713,6 +797,9 @@ async def main():
 
     StringLib.logging_in_box(f"\n{Color.YELLOW} 测试tools {Color.RESET}")
     __tools_test(langchainLib)
+
+    # StringLib.logging_in_box(f"\n{Color.YELLOW} 测试graph {Color.RESET}")
+    # __graph_test(langchainLib)
 
 if __name__ == "__main__":
     main()
