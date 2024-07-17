@@ -16,8 +16,10 @@ from ylz_translate.utils.langchain_utils import LangchainLib
 from ylz_translate.utils.soup_utils import SoupLib
 from ylz_translate.utils.data_utils import Color, JsonLib, StringLib, UrlLib
 
+from ylz_translate.tools.lake_translater import LakeTranslater
+
 class JsonTranslater(Translater):
-    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
+    def __init__(self,url,crawlLevel=0,markdownAction=MarkdonwAction.JINA):
         super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
     def get_chain(self):
         
@@ -212,37 +214,56 @@ class JsonTranslater(Translater):
                 else:
                     try:
                         logger.debug(f"1. block:{block},index:{index}")
-                        soup_block = SoupLib.html2soup(block)
-                        SoupLib.mask_html_with_dictionary(soup_block,attrs=["path","value"],value_key="value",dictionary = self.dictionary)
-                        #SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
-                        
-                        #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
-                        #logger.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
-                        #FileLib.writeFile(f"temp/{url_id}/json/{index}.html",SoupLib.soup2html(soup_block))
-                        if SoupLib.find_all_text_without_mask(soup_block):
-                            block_replaced = SoupLib.soup2html(soup_block)
-                            #StringLib.logging_in_box(f"翻译前no keep:\n{block_replaced}",print_func=print)
+                        if len(block) > size * 1.5:
+                            curdir = os.getcwd()
+                            print("*"*50,len(block),curdir)
+                            sub_path = f"sub_{str(index).zfill(3)}"
+                            newdir = f"temp/{url_id}/json/{sub_path}"
+                            os.mkdir(newdir)
+                            os.chdir(newdir)
+                            FileLib.writeFile(f"{sub_path}_en.html",block)
                             
-                            for keep_key,keep_value in keep_dict.items():
-                                block_replaced = block_replaced.replace(keep_value,f"__##k={keep_key}##__")
- 
-                            #StringLib.logging_in_box(f"翻译前with keep:\n{block_replaced}",print_func=print)
-                            
-                            logger.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
-                            result = chain.invoke(
-                                {
-                                    "input": block_replaced,
-                                }
-                            )
-                            content = result.content
-                            for keep_key,keep_value in keep_dict.items():
-                                content = content.replace(f"__##k={keep_key}##__",keep_value)
- 
-                            #StringLib.logging_in_box(f"翻译后no keep:\n{content}",print_func=print)
-                            
-                            new_soup_block = SoupLib.html2soup(content)
+                            sub_translater = LakeTranslater(url=f"file://{sub_path}_en.html",crawlLevel=0)
+                            sub_translater.start(size=size)
+                            new_soup_block_html = FileLib.readFile(f"{sub_path}_cn.html")
+                            os.chdir(curdir)
+                            if new_soup_block_html:
+                                new_soup_block = SoupLib.html2soup(new_soup_block_html)
+                            else:
+                                raise Exception(f"error on block {index}.")
                         else:
-                            new_soup_block = soup_block
+                            soup_block = SoupLib.html2soup(block)
+                            SoupLib.mask_html_with_dictionary(soup_block,attrs=["path","value"],value_key="value",dictionary = self.dictionary)
+                            #SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
+                            
+                            #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
+                            #logger.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
+                            #FileLib.writeFile(f"temp/{url_id}/json/{index}.html",SoupLib.soup2html(soup_block))
+                            if SoupLib.find_all_text_without_mask(soup_block):
+                                block_replaced = SoupLib.soup2html(soup_block)
+                                #StringLib.logging_in_box(f"翻译前no keep:\n{block_replaced}",print_func=print)
+                                
+                                for keep_key,keep_value in keep_dict.items():
+                                    block_replaced = block_replaced.replace(keep_value,f"__##k={keep_key}##__")
+    
+                                #StringLib.logging_in_box(f"翻译前with keep:\n{block_replaced}",print_func=print)
+                                
+                                logger.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
+                                result = chain.invoke(
+                                    {
+                                        "input": block_replaced,
+                                    }
+                                )
+                                content = result.content
+                                for keep_key,keep_value in keep_dict.items():
+                                    content = content.replace(f"__##k={keep_key}##__",keep_value)
+    
+                                #StringLib.logging_in_box(f"翻译后no keep:\n{content}",print_func=print)
+                                
+                                new_soup_block = SoupLib.html2soup(content)
+                            else:
+                                new_soup_block = soup_block
+                        
                         self.update_dictionary(value_dict,new_soup_block,url_id=url_id,block_idx=index)
                         #SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
                         SoupLib.unmask_html_with_dictionary(new_soup_block,attrs=["path","value"],value_key="value",dictionary=self.dictionary)
