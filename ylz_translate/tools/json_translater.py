@@ -219,13 +219,22 @@ class JsonTranslater(Translater):
                             print("*"*50,len(block),curdir)
                             sub_path = f"sub_{str(index).zfill(3)}"
                             newdir = f"temp/{url_id}/json/{sub_path}"
-                            os.mkdir(newdir)
+                            try:
+                                os.mkdir(newdir)
+                            except:
+                                pass
                             os.chdir(newdir)
                             FileLib.writeFile(f"{sub_path}_en.html",block)
-                            
-                            sub_translater = LakeTranslater(url=f"file://{sub_path}_en.html",crawlLevel=0)
-                            sub_translater.start(size=size)
-                            new_soup_block_html = FileLib.readFile(f"{sub_path}_cn.html")
+                            sub_url = f"file://{sub_path}_en.html"
+                            sub_url_id =  HashLib.md5(sub_url)
+                            FileLib.writeFile("id.txt",f"{sub_url_id}\n{sub_url}")
+                            sub_translater = LakeTranslater(url=sub_url,crawlLevel=0)
+                            sub_translater.clearErrorMsg()
+                            try:
+                                sub_translater.start(size=size)
+                            except Exception as e:
+                                StringLib.logging_in_box("error on {e}")
+                            new_soup_block_html = FileLib.readFile(f"{sub_url_id}_cn.lake")
                             os.chdir(curdir)
                             if new_soup_block_html:
                                 new_soup_block = SoupLib.html2soup(new_soup_block_html)
