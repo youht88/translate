@@ -301,7 +301,9 @@ class SoupLib():
                         node_html = f"<!DOCTYPE {str(nodes[key])}>"
                     elif isinstance(nodes[key],Tag):
                         node_html = str(nodes[key])
-                    
+                    else:
+                        node_html = str(nodes[key])
+                        #print("*"*80,type(nodes[key]),"\n\n","@",str(nodes[key]),"@","*"*80)
                     value_hash = HashLib.md5(node_html)[:6]
                     value_dict[value_hash] = node_html
                     cls.replace_block(nodes[key],BeautifulSoup(f"<div path={key} value={value_hash}></div>", 'html.parser'))
@@ -327,6 +329,8 @@ class SoupLib():
                     if isinstance(nodes[key],Doctype):
                         node_html = f"<!DOCTYPE {str(nodes[key])}>"
                     elif isinstance(nodes[key],Tag):
+                        node_html = str(nodes[key])
+                    else:
                         node_html = str(nodes[key])
                     value_hash = HashLib.md5(node_html)[:6]
                     value_dict[value_hash] = node_html
