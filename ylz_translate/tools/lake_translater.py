@@ -77,6 +77,7 @@ class LakeTranslater(Translater):
             blocks = [ item[1] for item in sorted(file_contents.items())]     
         else:        
             attribute_dict ={}
+            lake_data = lake_data.replace("&lt;","<").replace("&gt;",">")
             soup = SoupLib.html2soup(lake_data)
             
             for tag in lake_tags:
