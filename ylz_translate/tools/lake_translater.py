@@ -17,7 +17,7 @@ from ylz_translate.utils.soup_utils import SoupLib
 from ylz_translate.utils.data_utils import Color, JsonLib, StringLib, UrlLib
 
 class LakeTranslater(Translater):
-    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
+    def __init__(self,url,crawlLevel=0,markdownAction=MarkdonwAction.JINA):
         super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
     def get_chain(self):        
         llm = self.langchainLib.get_llm("LLM.TOGETHER")

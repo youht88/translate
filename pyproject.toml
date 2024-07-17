@@ -1,6 +1,10 @@
 [tool.poetry]
 name = "ylz-translate"
+<<<<<<< HEAD
 version = "0.2.0"
+=======
+version = "0.1.38"
+>>>>>>> hot_fix
 description = "渐进式文档翻译系统-v1"
 authors = ["toney88"]
 readme = "README.md"

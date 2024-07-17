@@ -14,7 +14,7 @@ from ylz_translate.utils.playwright_utils import PlaywrightLib
 from ylz_translate.utils.langchain_utils import LangchainLib
 
 class HtmlTranslater(Translater):
-    def __init__(self,url,crawlLevel=1,markdownAction=MarkdonwAction.JINA):
+    def __init__(self,url,crawlLevel=0,markdownAction=MarkdonwAction.JINA):
         super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction)
     def get_chain(self):
         llm = self.langchainLib.get_llm()

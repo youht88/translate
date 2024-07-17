@@ -34,7 +34,7 @@ class ImageAction(Enum):
 
 class Translater():
     def __init__(self,url:str|list[str]|None=None,dictionaryFilename="dictionary.json",
-                 taskFilename="task.json",crawlLevel=1,limit=10,markdownAction=MarkdonwAction.CRAWLER):
+                 taskFilename="task.json",crawlLevel=0,limit=10,markdownAction=MarkdonwAction.CRAWLER):
         self.markdownAction = markdownAction
         self.limit = limit
         self.crawlLevel = crawlLevel
