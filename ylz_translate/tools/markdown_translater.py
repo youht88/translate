@@ -13,7 +13,7 @@ from ylz_translate.utils.crypto_utils import HashLib
 from ylz_translate.utils.langchain_utils import LangchainLib
 
 class MarkdownTranslater(Translater):
-    def __init__(self,url,crawlLevel=1, markdownAction=MarkdonwAction.JINA):
+    def __init__(self,url,crawlLevel=0, markdownAction=MarkdonwAction.JINA):
         super().__init__(url=url,crawlLevel=crawlLevel, markdownAction=markdownAction)
     # translater = MarkdownTranslater(url= url,crawlLevel=1,markdownAction=MarkdonwAction.JINA)
     # translater.start()
