@@ -5,18 +5,17 @@ from PIL import Image,ImageFont,ImageDraw
 import matplotlib.pyplot as plt
 import os
 import textwrap
+import logging
 
-from ylz_translate.utils.file_utils import FileLib
-from ylz_translate.utils.crypto_utils  import HashLib
-from ylz_translate.utils.image_utils import *
-from ylz_translate.utils.langchain_utils import LangchainLib
+from ylz_translate.ylz_utils import FileLib, HashLib, LangchainLib
+from ylz_utils.image_utils import *
 from ylz_translate.llava import Llava
 import xml.etree.ElementTree as ET
 
 class ImageTranslater():
     def __init__(self,imageFilename="image.json",check_content=False):
         #urllib3_logger = logging.getLogger("urllib3")
-        # 设置 urllib3 logger 的级别为 CRITICAL，这样只有严重的错误才会被记录
+        # 设置 urllib3 logging 的级别为 CRITICAL，这样只有严重的错误才会被记录
         #urllib3_logger.setLevel(logging.CRITICAL)
 
         #self.image_url = image_url
@@ -73,7 +72,7 @@ class ImageTranslater():
             image_type = self.image_task[id].get("imageType","png")
         mode_letter = "m" if mode=="mark" else "r"
         if os.path.exists(f"img_{mode_letter}_{id}.{image_type}"):
-            logger.info(f"img_{mode_letter}_{id}.{image_type} exists")
+            logging.info(f"img_{mode_letter}_{id}.{image_type} exists")
             return None
         image,image_type = get_url_image(image_url)
         

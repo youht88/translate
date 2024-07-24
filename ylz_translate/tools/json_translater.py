@@ -1,6 +1,5 @@
 import traceback
 from typing import List, Tuple
-from logger import logger
 from tqdm import tqdm
 import re
 import time
@@ -8,13 +7,11 @@ import os
 import textwrap
 import bs4
 from bs4 import Doctype
+import logging
 
 from ylz_translate import Translater, MarkdonwAction, ImageAction
-from ylz_translate.utils.crypto_utils import HashLib
-from ylz_translate.utils.file_utils import FileLib
-from ylz_translate.utils.langchain_utils import LangchainLib
-from ylz_translate.utils.soup_utils import SoupLib
-from ylz_translate.utils.data_utils import Color, JsonLib, StringLib, UrlLib
+from ylz_translate.ylz_utils import HashLib, FileLib, LangchainLib, SoupLib
+from ylz_utils.data_utils import Color, JsonLib, StringLib, UrlLib
 
 from ylz_translate.tools.lake_translater import LakeTranslater
 
@@ -61,38 +58,38 @@ class JsonTranslater(Translater):
         return chain
 
     def update_dictionary(self, origin_value_dict,target_soup,url_id,block_idx,mask_key="__m__"):
-        logger.debug(f"1. enter function,url_id:{url_id},block_idx:{block_idx}")
+        logging.debug(f"1. enter function,url_id:{url_id},block_idx:{block_idx}")
         for idx, target_element in enumerate(target_soup.find_all(lambda tag:tag.get("path") and tag.get("value"))):
             target_html = "".join([f"<!DOCTYPE {str(item)}>" if isinstance(item,Doctype) else str(item) for item in target_element.contents])
-            logger.debug(f"4. idx: {idx},target_text : {target_html}")
+            logging.debug(f"4. idx: {idx},target_text : {target_html}")
             if not re.findall(f"{mask_key}=(.{{6}})",target_html):
                 value_hash = target_element.get("value")
                 origin_html = origin_value_dict[value_hash]
-                logger.debug(f"5.1 hash={value_hash},url_id={url_id},block_idx={block_idx}")
+                logging.debug(f"5.1 hash={value_hash},url_id={url_id},block_idx={block_idx}")
                 if not self.dictionary.get(value_hash):
                     self.dictionary[value_hash] = {"origin_text":origin_html,"target_text":target_html,"json_refs":[]}
                     if url_id!=None and block_idx!=None:
                         self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})
                 else:
-                    logger.debug(f"6????")
+                    logging.debug(f"6????")
             else:
                 value_hash = re.findall(f"{mask_key}=(.{{6}})",target_html)[0]
-                logger.debug(f"5.2 hash={value_hash},url_id={url_id},block_idx={block_idx}")
+                logging.debug(f"5.2 hash={value_hash},url_id={url_id},block_idx={block_idx}")
                 if self.dictionary.get(value_hash):
-                    logger.debug(f"5.3 ")
+                    logging.debug(f"5.3 ")
                     if url_id!=None and block_idx!=None:
-                        logger.debug(f"5.4 ")
+                        logging.debug(f"5.4 ")
                         exits = False
                         if "json_refs" not in self.dictionary[value_hash]:
-                            logger.debug(f'5.5 关键错误{not hasattr(self.dictionary[value_hash],"json_refs")}')
+                            logging.debug(f'5.5 关键错误{not hasattr(self.dictionary[value_hash],"json_refs")}')
                             self.dictionary[value_hash]["json_refs"]=[]
                         for item in self.dictionary[value_hash]["json_refs"]:
-                            logger.debug(f"5.6 item['url_id']:{item['url_id']},{url_id};item['block_idx']:{item['block_idx']},{block_idx}")
+                            logging.debug(f"5.6 item['url_id']:{item['url_id']},{url_id};item['block_idx']:{item['block_idx']},{block_idx}")
                             if item["url_id"] == url_id and item["block_idx"]==block_idx:
                                 exits = True
-                        logger.debug(f"6. url_id & block_idx is exists? {exits}")
+                        logging.debug(f"6. url_id & block_idx is exists? {exits}")
                         if not exits:
-                            logger.debug(f"7. value_hash={value_hash},url_id = {url_id},block_idx={block_idx}")
+                            logging.debug(f"7. value_hash={value_hash},url_id = {url_id},block_idx={block_idx}")
                             self.dictionary[value_hash]["json_refs"].append({"url_id":url_id,"block_idx":block_idx})  
         #FileLib.dumpJson("test.json",self.dictionary)
     def split_json_and_replace_struct(self, json_data_list, size) -> Tuple[List[str],dict,dict]:
@@ -101,7 +98,7 @@ class JsonTranslater(Translater):
         block_items=[]
         for item in json_data_list:
             item_len = len(item["value"])
-            #logger.info(f'{len(blocks)},{len(block_items)},{length},{size},{len(item["value"])},{"/".join([str(p) for p in item["path"]])}')
+            #logging.info(f'{len(blocks)},{len(block_items)},{length},{size},{len(item["value"])},{"/".join([str(p) for p in item["path"]])}')
             if length + item_len > size:
                 blocks.append(block_items.copy())
                 block_items=[]
@@ -213,7 +210,7 @@ class JsonTranslater(Translater):
                     pbar.update(1)
                 else:
                     try:
-                        logger.debug(f"1. block:{block},index:{index}")
+                        logging.debug(f"1. block:{block},index:{index}")
                         if len(block) > size * 1.5:
                             curdir = os.getcwd()
                             print("*"*50,len(block),curdir)
@@ -245,8 +242,8 @@ class JsonTranslater(Translater):
                             SoupLib.mask_html_with_dictionary(soup_block,attrs=["path","value"],value_key="value",dictionary = self.dictionary)
                             #SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
                             
-                            #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
-                            #logger.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
+                            #logging.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
+                            #logging.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
                             #FileLib.writeFile(f"temp/{url_id}/json/{index}.html",SoupLib.soup2html(soup_block))
                             if SoupLib.find_all_text_without_mask(soup_block):
                                 block_replaced = SoupLib.soup2html(soup_block)
@@ -257,7 +254,7 @@ class JsonTranslater(Translater):
     
                                 #StringLib.logging_in_box(f"翻译前with keep:\n{block_replaced}",print_func=print)
                                 
-                                logger.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
+                                logging.info(f"DEBUG:block-idx:{index},block-length:{len(block_replaced)}")
                                 result = chain.invoke(
                                     {
                                         "input": block_replaced,
@@ -277,12 +274,12 @@ class JsonTranslater(Translater):
                         #SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
                         SoupLib.unmask_html_with_dictionary(new_soup_block,attrs=["path","value"],value_key="value",dictionary=self.dictionary)
                         new_block = SoupLib.soup2html(new_soup_block)
-                        #logger.debug(f"4. new_block:{new_block}")
+                        #logging.debug(f"4. new_block:{new_block}")
                         FileLib.writeFile(f"temp/{url_id}/json/part_{str(index).zfill(3)}_cn.html",new_block)
                         newBlocks.append(new_block)
                         pbar.update(1)
                     except Exception as e:
-                        logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                        logging.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                         raise e
         
         # soup = SoupLib.restore_block_with_dict(soup,keep_dict,"keep")
@@ -298,7 +295,7 @@ class JsonTranslater(Translater):
         return resultJson
     def start(self, size=1500):
         total = len(self.url)
-        logger.info(f"begin on {total} urls")
+        logging.info(f"begin on {total} urls")
         startTime = time.time()
         chain = self.get_chain()
         success_files =[]
@@ -325,10 +322,10 @@ class JsonTranslater(Translater):
 
                 if taskItem.get('errorMsg'):
                     error_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
-                    logger.info(f"skip on url={url},id={id} ,because it is error ")
+                    logging.info(f"skip on url={url},id={id} ,because it is error ")
                     continue
                 if not os.path.exists(f"{id}.json"):
-                    logger.info(f"没有发现json文件 url= {url},id={id} ...")
+                    logging.info(f"没有发现json文件 url= {url},id={id} ...")
                     if json_file:
                         originJson = FileLib.loadJson(json_file,encoding="cp1252")
                         if originJson:
@@ -343,7 +340,7 @@ class JsonTranslater(Translater):
                     originJson = FileLib.loadJson(f"{id}.json")
                 resultJson = None
                 if not os.path.exists(f"{id}_cn.json"):
-                    logger.info(f"开始翻译 url= {url},id={id} ...")
+                    logging.info(f"开始翻译 url= {url},id={id} ...")
                     resultJson = self.translate_json_text(id,chain,originJson,size=size)
                     FileLib.dumpJson(f"{id}_cn.json",resultJson)
                     success_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
@@ -352,11 +349,11 @@ class JsonTranslater(Translater):
                     resultJson = FileLib.loadJson(f"{id}_cn.json")
                 
                 endTime = time.time() - startTime
-                logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
+                logging.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 error_files.append(f"{id}_cn.json ---> {json_file} ---> {url}")
                 taskItem["errorMsg"] = str(e)
-                logger.info(f"error on url={url},id={id},error={str(e)}")
+                logging.info(f"error on url={url},id={id},error={str(e)}")
                 traceback.print_exc()
                 #raise e
             FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
@@ -367,14 +364,14 @@ class JsonTranslater(Translater):
         FileLib.writeFile("files_error.txt","\n".join(error_files))
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)
-        logger.info("="*80)
+        logging.info("="*80)
         files_str = '\n'.join(success_files)
-        logger.info(f"success_files:\n{files_str}")
+        logging.info(f"success_files:\n{files_str}")
         files_str = '\n'.join(exists_files)
-        logger.info(f"exists_files:\n{files_str}")
+        logging.info(f"exists_files:\n{files_str}")
         files_str = '\n'.join(error_files)
-        logger.info(f"error_files:\n{files_str}")
-        logger.info("-"*50)
-        logger.info(f"本次任务共耗时:{round(endTime/60,2)}分钟。成功:{len(success_files)}条，已存在:{len(exists_files)}条，失败:{len(error_files)}条")
-        logger.info("="*80)
+        logging.info(f"error_files:\n{files_str}")
+        logging.info("-"*50)
+        logging.info(f"本次任务共耗时:{round(endTime/60,2)}分钟。成功:{len(success_files)}条，已存在:{len(exists_files)}条，失败:{len(error_files)}条")
+        logging.info("="*80)
         

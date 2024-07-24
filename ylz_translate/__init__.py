@@ -12,14 +12,11 @@ from tqdm import tqdm
 import textwrap
 # Install with pip install firecrawl-py
 from firecrawl import FirecrawlApp
-from logger import logger
+import logging
 
 import random
 
-from ylz_translate.utils.config_utils import Config
-from ylz_translate.utils.file_utils import FileLib
-from ylz_translate.utils.crypto_utils import HashLib
-from ylz_translate.utils.langchain_utils import *
+from ylz_translate.ylz_utils import Config, FileLib, HashLib, LangchainLib
 
 from enum import Enum
 
@@ -87,7 +84,7 @@ class Translater():
         self.crawler = crawler
         return crawler
     def clearErrorMsg(self):
-        logger.info("!!!!清除task所有的错误标记!!!!")
+        logging.info("!!!!清除task所有的错误标记!!!!")
         for id,taskItem in self.task.items():
             if taskItem.get("errorMsg",""):
                 taskItem["errorMsg"] = ""

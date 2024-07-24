@@ -1,15 +1,14 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
-from logger import logger
 
-from ylz_translate.utils.config_utils import Config
-from ylz_translate.utils.data_utils import StringLib
+from ylz_translate.ylz_utils import Config,StringLib
 
 def init(args):
     # 设置logger
     log_level = logging.INFO if args.log_level=="INFO" else logging.DEBUG
     log_file = args.log if args.log else "task.log"
 
+    logger = logging.getLogger()
     logger.setLevel(log_level)
 
     file_handler = TimedRotatingFileHandler(
@@ -24,7 +23,6 @@ def init(args):
     formatter = logging.Formatter('%(asctime)s %(name)s [pid:%(process)d] [%(threadName)s] [%(levelname)s] %(message)s')
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-
     # looging
     StringLib.logging_in_box(str(args),"*")
 

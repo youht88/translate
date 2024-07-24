@@ -1,7 +1,5 @@
 import logging
-from ylz_translate.utils.crypto_utils import HashLib
-from ylz_translate.utils.data_utils import Color
-from ylz_translate.utils.file_utils import FileLib
+from ylz_translate.ylz_utils import HashLib, Color, FileLib
 
 def clearTask(args):
         dictionary = FileLib.loadJson("dictionary.json")

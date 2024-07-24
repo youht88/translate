@@ -1,17 +1,13 @@
-from logger import logger
 from tqdm import tqdm
 import re
 import time
 import os
 import textwrap
 import traceback
+import logging
 
 from ylz_translate import Translater, MarkdonwAction, ImageAction
-from ylz_translate.utils.soup_utils import SoupLib
-from ylz_translate.utils.crypto_utils import HashLib
-from ylz_translate.utils.file_utils import FileLib
-from ylz_translate.utils.playwright_utils import PlaywrightLib
-from ylz_translate.utils.langchain_utils import LangchainLib
+from ylz_translate.ylz_utils import SoupLib, HashLib, FileLib, PlaywrightLib, LangchainLib
 
 class HtmlTranslater(Translater):
     def __init__(self,url,crawlLevel=0,markdownAction=MarkdonwAction.JINA):
@@ -34,26 +30,26 @@ class HtmlTranslater(Translater):
         chain = prompt | llm
         return chain
     def update_dictionary(self, origin_soup, target_soup,url_id,block_idx,mask_key="__m__"):
-        logger.debug(f"1. enter function")
+        logging.debug(f"1. enter function")
         if SoupLib.compare_soup_structure(origin_soup,target_soup):
             origin_texts = SoupLib.find_all_text(origin_soup)
             target_texts = SoupLib.find_all_text(target_soup)
-            logger.debug(f"2. compare soup structure")
+            logging.debug(f"2. compare soup structure")
             if len(origin_texts) == len(target_texts):
-                logger.debug(f"3. length equal {len(origin_texts)}")
+                logging.debug(f"3. length equal {len(origin_texts)}")
                 for idx, origin_text in enumerate(origin_texts):
                     target_text = target_texts[idx]
-                    logger.debug(f"4. idx: {idx},target_text : {target_text}")
+                    logging.debug(f"4. idx: {idx},target_text : {target_text}")
                     if not re.findall(f"{mask_key}=(.{{6}})",target_text):
                         hash = HashLib.md5(origin_text)[:6]
-                        logger.debug(f"5.1 hash={hash},url_id={url_id},block_idx={block_idx}")
+                        logging.debug(f"5.1 hash={hash},url_id={url_id},block_idx={block_idx}")
                         if not self.dictionary.get(hash):
                             self.dictionary[hash] = {"origin_text":origin_text,"target_text":target_text,"html_refs":[]}
                             if url_id and block_idx:
                                 self.dictionary[hash]["html_refs"].append({"url_id":url_id,"block_idx":block_idx})
                     else:
                         hash = re.findall(f"{mask_key}=(.{{6}})",target_text)[0]
-                        logger.debug(f"5.2 hash={hash},url_id={url_id},block_idx={block_idx}")
+                        logging.debug(f"5.2 hash={hash},url_id={url_id},block_idx={block_idx}")
                         if self.dictionary.get(hash):
                             if url_id and block_idx:
                                 exits = False
@@ -62,7 +58,7 @@ class HtmlTranslater(Translater):
                                 for item in self.dictionary[hash]["html_refs"]:
                                     if item["url_id"] == url_id and item["block_idx"]==block_idx:
                                         exits = True
-                                logger.debug(f"6. url_id & block_idx is exists? {exits}")
+                                logging.debug(f"6. url_id & block_idx is exists? {exits}")
                                 if not exits:
                                     self.dictionary[hash]["html_refs"].append({"url_id":url_id,"block_idx":block_idx})  
 
@@ -101,11 +97,11 @@ class HtmlTranslater(Translater):
                     pbar.update(1)
                 else:
                     try:
-                        logger.debug(f"1. block:{block},index:{index}")
+                        logging.debug(f"1. block:{block},index:{index}")
                         soup_block = SoupLib.html2soup(block)
                         SoupLib.mask_text_with_dictionary(soup_block,self.dictionary)
-                        #logger.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
-                        #logger.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
+                        #logging.debug(f"2. masked soup: {SoupLib.soup2html(soup_block)}")
+                        #logging.debug(f"3. find_all_text_without_mask:{SoupLib.find_all_text_without_mask(soup_block)}")
                         if SoupLib.find_all_text_without_mask(soup_block):
                             block_replaced = SoupLib.soup2html(soup_block)
                             result = chain.invoke(
@@ -120,12 +116,12 @@ class HtmlTranslater(Translater):
                         self.update_dictionary(soup_block,new_soup_block,url_id=url_id,block_idx=index)
                         SoupLib.unmask_text_with_dictionary(new_soup_block,self.dictionary)
                         new_block = SoupLib.soup2html(new_soup_block)
-                        #logger.debug(f"4. new_block:{new_block}")
+                        #logging.debug(f"4. new_block:{new_block}")
                         FileLib.writeFile(f"temp/{url_id}/html/part_{str(index).zfill(3)}_cn.html",new_block)
                         newBlocks.append(new_block)
                         pbar.update(1)
                     except Exception as e:
-                        logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                        logging.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                         raise e
         SoupLib.unwalk(soup,newBlocks)
         SoupLib.unhash_attribute(soup,attribute_dict)
@@ -137,7 +133,7 @@ class HtmlTranslater(Translater):
         async with PlaywrightLib(headless=False) as pw:
             await pw.goto(url,start_log="开始加载页面",end_log="页面加载完成",wait_until="domcontentloaded",timeout=180000)
             pw.wait(3000,start_log="等待3秒",end_log="等待结束")
-            logger.info(await pw.selector_exists('//section[contains(@class,"right")]'))
+            logging.info(await pw.selector_exists('//section[contains(@class,"right")]'))
             request_show = await pw.selector_exists("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]")
             if request_show:
                 await pw.click("//div[@id='Requestparameters']//button//span[contains(text(),'Show all')]",start_log="点击Req Show all按钮")
@@ -156,7 +152,7 @@ class HtmlTranslater(Translater):
 
     async def start(self, imageAction:ImageAction|None=None,size=1500,only_download=False):
         total = len(self.url)
-        logger.info(f"begin on {total} urls")
+        logging.info(f"begin on {total} urls")
         startTime = time.time()
         chain = self.get_chain()
         for index,url in enumerate(self.url):
@@ -172,10 +168,10 @@ class HtmlTranslater(Translater):
                     }
                     self.task[id] = taskItem
                 if taskItem.get('errorMsg'):
-                    logger.info(f"skip on url={url},id={id} ,because it is error ")
+                    logging.info(f"skip on url={url},id={id} ,because it is error ")
                     continue
                 if not os.path.exists(f"{id}.html"):
-                    logger.info(f"提取html url= {url},id={id} ...")
+                    logging.info(f"提取html url= {url},id={id} ...")
                     originHtml = await self.get_html(url)
                     metadata = None
                     if originHtml:
@@ -190,17 +186,17 @@ class HtmlTranslater(Translater):
                 resultHtml = None
                 if not only_download:
                     if not os.path.exists(f"{id}_cn.html"):
-                        logger.info(f"开始翻译 url= {url},id={id} ...")
+                        logging.info(f"开始翻译 url= {url},id={id} ...")
                         resultHtml = self.translate_html_text(id,chain,originHtml,size=size)
                         FileLib.writeFile(f"{id}_cn.html",resultHtml)
                     else:
                         resultHtml = FileLib.readFile(f"{id}_cn.html")
                 
                 endTime = time.time() - startTime
-                logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
+                logging.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
-                logger.info(f"error on url={url},id={id},error={str(e)}")
+                logging.info(f"error on url={url},id={id},error={str(e)}")
                 #raise e
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)

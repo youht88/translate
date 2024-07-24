@@ -1,4 +1,4 @@
-from logger import logger
+import logging
 import time
 import os
 import re
@@ -8,9 +8,7 @@ import textwrap
 from ylz_translate.tools.image_translater import ImageTranslater
 
 from ylz_translate import Translater, MarkdonwAction, ImageAction
-from ylz_translate.utils.file_utils import FileLib
-from ylz_translate.utils.crypto_utils import HashLib
-from ylz_translate.utils.langchain_utils import LangchainLib
+from ylz_translate.ylz_utils import FileLib,HashLib, LangchainLib
 
 class MarkdownTranslater(Translater):
     def __init__(self,url,crawlLevel=0, markdownAction=MarkdonwAction.JINA):
@@ -59,12 +57,12 @@ class MarkdownTranslater(Translater):
                     newBlocks.append(content)
                     pbar.update(1)
                 except Exception as e:
-                    logger.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
+                    logging.info(f"error on translate_text({index}):\n{'*'*50}\n[{len(block)}]{block}\n{'*'*50}\n\n")
                     raise e
         return "\n\n".join(newBlocks)
     def start(self, imageAction:ImageAction|None=None):
         total = len(self.url)
-        logger.info(f"begin on {total} urls")
+        logging.info(f"begin on {total} urls")
         startTime = time.time()
         chain = self.get_chain()
         for index,url in enumerate(self.url):
@@ -79,10 +77,10 @@ class MarkdownTranslater(Translater):
                     }
                     self.task[id] = taskItem
                 if taskItem.get('errorMsg'):
-                    logger.info(f"skip on url={url},id={id} ,because it is error ")
+                    logging.info(f"skip on url={url},id={id} ,because it is error ")
                     continue
                 if not os.path.exists(f"{id}.md"):
-                    logger.info(f"提取markdown url= {url},id={id} ...")
+                    logging.info(f"提取markdown url= {url},id={id} ...")
                     response = self.getMarkdown(url)
                     originHtml = response.get("html",None)
                     originMarkdown = response.get("content",None)
@@ -100,7 +98,7 @@ class MarkdownTranslater(Translater):
                     originMarkdown = FileLib.readFile(f"{id}.md")
                 resultMarkdown = None
                 if not os.path.exists(f"{id}_cn.md"):
-                    logger.info(f"开始翻译 url= {url},id={id} ...")
+                    logging.info(f"开始翻译 url= {url},id={id} ...")
                     resultMarkdown = self.translate_markdown_text(chain,originMarkdown)
                     FileLib.writeFile(f"{id}_cn.md",resultMarkdown)
                 else:
@@ -122,10 +120,10 @@ class MarkdownTranslater(Translater):
                                 pbar.update(1)
                     FileLib.writeFile(f"{id}_cn.md",resultMarkdown)
                 endTime = time.time() - startTime
-                logger.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
+                logging.info(f"[{round((index+1)/total*100,2)}%][累计用时:{round(endTime/60,2)}分钟]===>url->{url},id->{id}")
             except Exception as e:
                 taskItem["errorMsg"] = str(e)
-                logger.info(f"error on url={url},id={id},error={str(e)}")
+                logging.info(f"error on url={url},id={id},error={str(e)}")
                 #raise e
         FileLib.dumpJson(self.dictionaryFilename,self.dictionary)
         FileLib.dumpJson(self.taskFilename,self.task)
