@@ -210,6 +210,9 @@ class LangchainLib():
             sec_keys = language.get("SEC_KEYS")
             if sec_keys:
                 sec_keys = sec_keys.split(",")
+                # 防止最后
+                if not sec_keys[-1]:
+                    sec_keys.pop()
             else:
                 sec_keys = []
             model= language.get("MODEL") if language.get("MODEL") else default['model']
