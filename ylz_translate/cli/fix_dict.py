@@ -63,12 +63,6 @@ def fixDict(args):
         dictionary = FileLib.loadJson("dictionary.json")
 
         mode = args.mode
-        if mode == "json":
-            mode_fix = "json"
-        elif mode == "html":
-            mode_fix = "html"
-        else:
-            mode_fix = "md"
         
         dict_hash_init = args.dict_hash
         issubtext = args.issubtext
@@ -181,7 +175,7 @@ def fixDict(args):
                         #logging.info(f"???,dict_hash={dict_hash},ref_item_url_id={ref_item_url_id},ref_item_block_idx={ref_item_block_idx}")
                         if ref_item_url_id!=None and ref_item_block_idx!=None:
                             FileLib.rmFile(f"temp/{ref_item_url_id}/{mode}/part_{str(ref_item_block_idx).zfill(3)}_cn.html")
-                            FileLib.rmFile(f"{ref_item_url_id}_cn.{mode_fix}")            
+                            FileLib.rmFile(f"{ref_item_url_id}_cn.{mode}")            
             if dict_hash_init!=None and clear_dict_hash:
                 dictionary.pop(dict_hash_init)
             FileLib.dumpJson("dictionary.json",dictionary)
