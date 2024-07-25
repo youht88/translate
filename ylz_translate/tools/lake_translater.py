@@ -74,15 +74,18 @@ class LakeTranslater(Translater):
             blocks = [ item[1] for item in sorted(file_contents.items())]     
         else:        
             attribute_dict ={}
+            # 临时处理bug,当把"&lt;script&gt;"替换为"<script>"时会导致soup转换截断,所以临时禁止这个替换
+            lake_data = lake_data.replace("&lt;script&gt;","@@__##script##__@@")
             lake_data = lake_data.replace("&lt;","<").replace("&gt;",">")
+            lake_data = lake_data.replace("@@__##script##__@@","&lt;script&gt;")
             soup = SoupLib.html2soup(lake_data)
-            
+
             for tag in lake_tags:
                 SoupLib.replace_tag_name(soup,tag["key"],tag["value"])
             
             attribute_dict.update(SoupLib.hash_attribute(soup))
             source = SoupLib.soup2html(soup)
-        
+            
             keep_dict = {}
             lake_keep = self.config.get("LAKE_KEEP")
             if not lake_keep:

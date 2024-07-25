@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ylz-translate"
-version = "0.2.3"
+version = "0.2.4"
 description = "渐进式文档翻译系统-v1"
 authors = ["toney88"]
 readme = "README.md"
@@ -26,8 +26,7 @@ markdownify = "^0.12.1"
 tqdm = "^4.66.4"
 argparse = "^1.4.0"
 pyyaml = "^6.0.1"
-ylz-utils = "^0.1.0"
-
+ylz-utils = "^0.1.6"
 
 [build-system]
 requires = ["poetry-core","setuptools"]
