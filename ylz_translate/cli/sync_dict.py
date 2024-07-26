@@ -1,5 +1,5 @@
 import logging
-from ylz_translate.ylz_utils import HashLib,Color,FileLib,SoupLib
+from ylz_utils import HashLib,Color,FileLib,SoupLib
 
 def syncDict(args):
         dictionary = FileLib.loadJson("dictionary.json")

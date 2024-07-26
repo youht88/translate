@@ -8,7 +8,7 @@ import textwrap
 from ylz_translate.tools.image_translater import ImageTranslater
 
 from ylz_translate import Translater, MarkdonwAction, ImageAction
-from ylz_translate.ylz_utils import FileLib,HashLib, LangchainLib
+from ylz_utils import FileLib,HashLib, LangchainLib
 
 class MarkdownTranslater(Translater):
     def __init__(self,url,crawlLevel=0, markdownAction=MarkdonwAction.JINA):

@@ -1,7 +1,7 @@
 import logging
 import re
 
-from ylz_translate.ylz_utils import FileLib , HashLib,SoupLib,Color
+from ylz_utils import FileLib , HashLib,SoupLib,Color
 
 def _replaceSoupText(pattern,soup,replace_text=None) -> bool:
     string_elements = soup.find_all(string=True)

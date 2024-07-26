@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "ylz-translate"
-version = "0.2.4"
-description = "渐进式文档翻译系统-v1"
+version = "0.2.5"
+description = "渐进式文档翻译系统-v2"
 authors = ["toney88"]
 readme = "README.md"
 
@@ -17,16 +17,15 @@ include = "ylz_translate"
 
 [tool.poetry.scripts]
 ylz_translate = "ylz_translate.cli.main:run"
-init_config = "ylz_translate.cli.init_config:copy_config"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.10,<3.13"
 firecrawl-py = "^0.0.16"
 markdownify = "^0.12.1"
 tqdm = "^4.66.4"
 argparse = "^1.4.0"
 pyyaml = "^6.0.1"
-ylz-utils = "^0.1.6"
+ylz-utils = "^0.1.9"
 
 [build-system]
 requires = ["poetry-core","setuptools"]

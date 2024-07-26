@@ -7,7 +7,7 @@ import traceback
 import logging
 
 from ylz_translate import Translater, MarkdonwAction, ImageAction
-from ylz_translate.ylz_utils import SoupLib, HashLib, FileLib, PlaywrightLib, LangchainLib
+from ylz_utils import SoupLib, HashLib, FileLib, PlaywrightLib, LangchainLib
 
 class HtmlTranslater(Translater):
     def __init__(self,url,crawlLevel=0,markdownAction=MarkdonwAction.JINA):

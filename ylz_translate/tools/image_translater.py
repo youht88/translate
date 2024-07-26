@@ -7,8 +7,8 @@ import os
 import textwrap
 import logging
 
-from ylz_translate.ylz_utils import FileLib, HashLib, LangchainLib
-from ylz_utils.image_utils import *
+from ylz_utils import FileLib, HashLib, LangchainLib
+from ylz_utils.image import *
 from ylz_translate.llava import Llava
 import xml.etree.ElementTree as ET
 

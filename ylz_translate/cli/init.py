@@ -1,12 +1,14 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
-from ylz_translate.ylz_utils import Config,StringLib
+from ylz_utils import Config
+from ylz_utils import StringLib
 
 def init(args):
+    project_name = args.project_name
     # 设置logger
     log_level = logging.INFO if args.log_level=="INFO" else logging.DEBUG
-    log_file = args.log if args.log else "task.log"
+    log_file = args.log_name if args.log_name else f"{project_name}.log"
 
     logger = logging.getLogger()
     logger.setLevel(log_level)
@@ -27,4 +29,4 @@ def init(args):
     StringLib.logging_in_box(str(args),"*")
 
     #设置config
-    Config.init("ylz_translate", args.env_file) 
+    Config.init(project_name) 

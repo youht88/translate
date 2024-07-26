@@ -1,7 +1,7 @@
 from html import escape
 import logging
 
-from ylz_translate.ylz_utils import SoupLib, HashLib , FileLib
+from ylz_utils import SoupLib, HashLib , FileLib
 
 import platform
 import subprocess

@@ -5,8 +5,8 @@ from io import BytesIO
 from IPython.display import HTML, display
 import base64
 
-from ylz_utils.image_utils import *
-from ylz_utils.langchain_utils import LangchainLib
+from ylz_utils.image import *
+from ylz_utils.langchain import LangchainLib
 class Llava():
     def __init__(self):
         langchainLib = LangchainLib()

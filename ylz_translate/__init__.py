@@ -16,7 +16,7 @@ import logging
 
 import random
 
-from ylz_translate.ylz_utils import Config, FileLib, HashLib, LangchainLib
+from ylz_utils import Config, FileLib, HashLib, LangchainLib
 
 from enum import Enum
 

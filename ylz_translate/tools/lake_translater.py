@@ -10,8 +10,8 @@ from bs4 import Doctype
 import logging
 
 from ylz_translate import Translater, MarkdonwAction, ImageAction
-from ylz_translate.ylz_utils import HashLib, FileLib, LangchainLib, SoupLib
-from ylz_utils.data_utils import Color, JsonLib, StringLib, UrlLib
+from ylz_utils import HashLib, FileLib, LangchainLib, SoupLib
+from ylz_utils.data import Color, JsonLib, StringLib, UrlLib
 
 class LakeTranslater(Translater):
     def __init__(self,url,crawlLevel=0,markdownAction=MarkdonwAction.JINA):

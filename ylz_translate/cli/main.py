@@ -5,6 +5,7 @@ import argparse
 
 from ylz_translate.cli.init import init
 
+from ylz_translate.cli.reset import reset
 from ylz_translate.cli.start import start
 from ylz_translate.cli.clear_task import clearTask
 from ylz_translate.cli.fix_dict import fixDict
@@ -16,12 +17,15 @@ def run():
 
 async def main():
     parser = argparse.ArgumentParser(description = "渐进式翻译系统")
+    parser.add_argument("--project_name",type=str,default="ylz_translate",help="project名称")
+    parser.add_argument("--config_name",type=str,default="config.yaml",help="config名称")
     parser.add_argument("--mode", required=True, choices=["md","html","json","lake"],help="操作模式(md|html|json|lake)")
     parser.add_argument("--log_level",type=str,default="INFO",choices=["INFO","DEBUG"],help="日志级别,默认:INFO")
-    parser.add_argument("--log",type=str,default="task.log",help="日志文件名称")
-    parser.add_argument("--env_file",type=str,required=False,help="配置文件名称")
+    parser.add_argument("--log_name",type=str,default="task.log",help="日志文件名称")
     
     subparsers = parser.add_subparsers(dest="command", help="可以使用的子命令")
+
+    reset_parser = subparsers.add_parser("reset", help="执行初始化")
 
     start_parser = subparsers.add_parser("start", help="启动翻译")
     start_parser.add_argument("--url",type=str,help="url地址,如果不指定则从--url_file文件获取")
@@ -66,7 +70,9 @@ async def main():
 
     init(args)
 
-    if args.command == "start":
+    if args.command == "reset":
+        reset(args)
+    elif args.command == "start":
         await start(args)
     elif args.command == "fixDict":    
         fixDict(args)
