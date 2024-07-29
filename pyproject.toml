@@ -21,7 +21,6 @@ ylz_translate = "ylz_translate.cli.main:run"
 [tool.poetry.dependencies]
 python = "^3.10,<3.13"
 firecrawl-py = "^0.0.16"
-markdownify = "^0.12.1"
 tqdm = "^4.66.4"
 argparse = "^1.4.0"
 pyyaml = "^6.0.1"
