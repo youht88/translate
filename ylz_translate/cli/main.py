@@ -68,11 +68,13 @@ async def main():
 
     args = parser.parse_args()
 
-    init(args)
-
     if args.command == "reset":
         reset(args)
-    elif args.command == "start":
+        return
+
+    init(args)
+   
+    if args.command == "start":
         await start(args)
     elif args.command == "fixDict":    
         fixDict(args)
