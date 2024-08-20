@@ -1,3 +1,5 @@
+LANGSMITH:
+    API_KEYS: ${LANGSMITH_API_KEYS}
 LLM:
     DEFAULT: "LLM.GROQ"
     SILICONFLOW:
@@ -26,17 +28,41 @@ LLM:
     OLLAMA:
         API_KEYS: ${OLLAMA_API_KEYS}
         MODEL: ${OLLAMA_LLM_MODEL}
-        
+        KEEP_ALIVE: -1
+    MOONSHOT:
+        API_KEYS: ${MOONSHOT_API_KEYS}
+        BASE_URL: https://api.moonshot.cn/v1
+        MODEL: ${MOONSHOT_LLM_MODEL}  
+    DEEPBRICKS:
+        API_KEYS: ${DEEPBRICKS_API_KEYS}
+        BASE_URL: https://api.deepbricks.ai/v1
+        MODEL: ${DEEPBRICKS_LLM_MODEL}
+    HF:
+        API_KEYS: ${HF_API_KEYS}
+        MODEL: ${HF_LLM_MODEL}
+        PIPELINE: false
 EMBEDDING:
+    DEFAULT: EMBEDDING.TOGETHER
     TOGETHER: 
         API_KEYS: ${TOGETHER_API_KEYS}
         MODEL: ${TOGETHER_EMBEDDING_MODEL}
     GEMINI:
         API_KEYS: ${GEMINI_API_KEYS}
         MODEL: ${GEMINI_EMBEDDING_MODEL}
+    OLLAMA:
+        API_KEYS: ${OLLAMA_API_KEYS}
+        MODEL: ${OLLAMA_EMBEDDING_MODEL}
+    HF:
+        API_KEYS: ${HF_API_KEYS}
+        MODEL: ${HF_EMBEDDING_MODEL}
+        PIPELINE: false
 SEARCH_TOOLS:
     TAVILY:
         API_KEYS: ${TAVILY_API_KEYS}
+ES:
+    HOST: https://localhost:9200
+    USER: elastic
+    PASSWORD: ${ES_PASSWORD}
 
 PROMPT:
     JSON_MODE: |

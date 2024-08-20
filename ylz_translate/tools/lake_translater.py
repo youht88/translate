@@ -17,7 +17,8 @@ class LakeTranslater(Translater):
     def __init__(self,url,crawlLevel=0,markdownAction=MarkdonwAction.JINA):
         super().__init__(url=url,crawlLevel=crawlLevel,markdownAction=markdownAction)
     def get_chain(self):        
-        llm = self.langchainLib.get_llm("LLM.TOGETHER")
+        #llm = self.langchainLib.get_llm("LLM.TOGETHER")
+        llm = self.langchainLib.get_llm()
         systemPromptText = self.config.get("PROMPT.LAKE_MODE")
         prompt = self.langchainLib.get_prompt(textwrap.dedent(systemPromptText))
         #outputParser = self.langchainLib.get_outputParser()

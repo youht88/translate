@@ -315,6 +315,7 @@ class JsonTranslater(Translater):
                     }
                     self.task[id] = taskItem
                 _,url_type = UrlLib.urlify(url)
+                print("!!!!",url,url_type)
                 if url_type=="file":
                     json_file = UrlLib.strip_protocol(url)
                     taskItem["json"] = json_file

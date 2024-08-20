@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ylz-translate"
-version = "0.2.6"
+version = "0.2.7"
 description = "渐进式文档翻译系统-v2"
 authors = ["toney88"]
 readme = "README.md"
